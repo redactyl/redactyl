@@ -31,7 +31,8 @@ func Load(path string) (Matcher, error) {
 
 func (m Matcher) Match(p string) bool {
 	for _, pat := range m.ps {
-		if pat.Match(strings.Split(p, "/"), false) {
+		result := pat.Match(strings.Split(p, "/"), false)
+		if result != gitignore.NoMatch {
 			return true
 		}
 	}

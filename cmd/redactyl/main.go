@@ -7,24 +7,24 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/you/redactyl/internal/engine"
-	"github.com/you/redactyl/internal/report"
+	"github.com/accrava/redactyl/internal/engine"
+	"github.com/accrava/redactyl/internal/report"
 )
 
 func main() {
 	var (
-		path          string
-		scanStaged    bool
-		scanHistory   int
-		baseBranch    string
-		includeGlobs  string
-		excludeGlobs  string
-		maxBytes      int64
-		jsonOut       bool
-		sarifOut      bool
+		path           string
+		scanStaged     bool
+		scanHistory    int
+		baseBranch     string
+		includeGlobs   string
+		excludeGlobs   string
+		maxBytes       int64
+		jsonOut        bool
+		sarifOut       bool
 		updateBaseline bool
-		failOn        string
-		threads       int
+		failOn         string
+		threads        int
 	)
 	flag.StringVar(&path, "path", ".", "path to scan")
 	flag.BoolVar(&scanStaged, "staged", false, "scan staged changes")
@@ -43,14 +43,14 @@ func main() {
 	abs, _ := filepath.Abs(path)
 
 	cfg := engine.Config{
-		Root:          abs,
-		IncludeGlobs:  includeGlobs,
-		ExcludeGlobs:  excludeGlobs,
-		MaxBytes:      maxBytes,
-		ScanStaged:    scanStaged,
+		Root:           abs,
+		IncludeGlobs:   includeGlobs,
+		ExcludeGlobs:   excludeGlobs,
+		MaxBytes:       maxBytes,
+		ScanStaged:     scanStaged,
 		HistoryCommits: scanHistory,
-		BaseBranch:    baseBranch,
-		Threads:       threads,
+		BaseBranch:     baseBranch,
+		Threads:        threads,
 	}
 
 	results, err := engine.Scan(cfg)
@@ -66,10 +66,8 @@ func main() {
 	// Output
 	switch {
 	case sarifOut:
-		if err := report.WriteSARIF(os.Stdout, newFindings); err != nil {
-			fmt.Fprintln(os.Stderr, "sarif error:", err)
-			os.Exit(2)
-		}
+		fmt.Fprintln(os.Stderr, "SARIF output not implemented yet")
+		os.Exit(1)
 	case jsonOut:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")

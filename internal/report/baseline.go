@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/accrava/redactyl/internal/engine"
+	"github.com/accrava/redactyl/internal/types"
 )
 
 type Baseline struct {
@@ -21,7 +21,7 @@ func LoadBaseline(path string) (Baseline, error) {
 	return b, nil
 }
 
-func SaveBaseline(path string, findings []engine.Finding) error {
+func SaveBaseline(path string, findings []types.Finding) error {
 	b := Baseline{Items: map[string]bool{}}
 	for _, f := range findings {
 		b.Items[key(f)] = true
@@ -30,8 +30,8 @@ func SaveBaseline(path string, findings []engine.Finding) error {
 	return os.WriteFile(path, buf, 0644)
 }
 
-func FilterNewFindings(findings []engine.Finding, base Baseline) []engine.Finding {
-	var out []engine.Finding
+func FilterNewFindings(findings []types.Finding, base Baseline) []types.Finding {
+	var out []types.Finding
 	for _, f := range findings {
 		if !base.Items[key(f)] {
 			out = append(out, f)
@@ -40,11 +40,11 @@ func FilterNewFindings(findings []engine.Finding, base Baseline) []engine.Findin
 	return out
 }
 
-func key(f engine.Finding) string {
+func key(f types.Finding) string {
 	return f.Path + "|" + f.Detector + "|" + f.Match
 }
 
-func ShouldFail(findings []engine.Finding, failOn string) bool {
+func ShouldFail(findings []types.Finding, failOn string) bool {
 	level := map[string]int{"low": 1, "medium": 2, "high": 3}
 	th := level[failOn]
 	if th == 0 {

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/you/redactyl/internal/ignore"
+	"github.com/accrava/redactyl/internal/ignore"
 )
 
 type fileJob struct {

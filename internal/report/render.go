@@ -5,10 +5,10 @@ import (
 	"io"
 	"sort"
 
-	"github.com/accrava/redactyl/internal/engine"
+	"github.com/accrava/redactyl/internal/types"
 )
 
-func PrintTable(w io.Writer, findings []engine.Finding) {
+func PrintTable(w io.Writer, findings []types.Finding) {
 	sort.Slice(findings, func(i, j int) bool {
 		if findings[i].Path == findings[j].Path {
 			return findings[i].Line < findings[j].Line

@@ -5,20 +5,20 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/accrava/redactyl/internal/engine"
+	"github.com/accrava/redactyl/internal/types"
 )
 
-func PrivateKeyBlock(path string, data []byte) []engine.Finding {
-	var out []engine.Finding
+func PrivateKeyBlock(path string, data []byte) []types.Finding {
+	var out []types.Finding
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	line := 0
 	for sc.Scan() {
 		line++
 		t := sc.Text()
 		if strings.Contains(t, "-----BEGIN ") && strings.Contains(t, " PRIVATE KEY-----") {
-			out = append(out, engine.Finding{
+			out = append(out, types.Finding{
 				Path: path, Line: line, Match: "BEGIN PRIVATE KEY",
-				Detector: "private_key_block", Severity: engine.SevHigh, Confidence: 0.99,
+				Detector: "private_key_block", Severity: types.SevHigh, Confidence: 0.99,
 			})
 		}
 	}

@@ -9,24 +9,8 @@ import (
 	"github.com/accrava/redactyl/internal/detectors"
 	"github.com/accrava/redactyl/internal/git"
 	"github.com/accrava/redactyl/internal/ignore"
+	"github.com/accrava/redactyl/internal/types"
 )
-
-type Severity string
-
-const (
-	SevLow  Severity = "low"
-	SevMed  Severity = "medium"
-	SevHigh Severity = "high"
-)
-
-type Finding struct {
-	Path       string   `json:"path"`
-	Line       int      `json:"line"`
-	Match      string   `json:"match"`
-	Detector   string   `json:"detector"`
-	Severity   Severity `json:"severity"`
-	Confidence float64  `json:"confidence"`
-}
 
 type Config struct {
 	Root           string
@@ -39,7 +23,7 @@ type Config struct {
 	Threads        int
 }
 
-func Scan(cfg Config) ([]Finding, error) {
+func Scan(cfg Config) ([]types.Finding, error) {
 	threads := cfg.Threads
 	if threads <= 0 {
 		threads = runtime.GOMAXPROCS(0)
@@ -49,8 +33,8 @@ func Scan(cfg Config) ([]Finding, error) {
 	ign, _ := ignore.Load(filepath.Join(cfg.Root, ".redactylignore"))
 	ctx := context.Background()
 
-	var out []Finding
-	emit := func(fs []Finding) {
+	var out []types.Finding
+	emit := func(fs []types.Finding) {
 		out = append(out, fs...)
 	}
 

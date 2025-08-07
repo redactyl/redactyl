@@ -6,14 +6,14 @@ import (
 	"math"
 	"regexp"
 
-	"github.com/accrava/redactyl/internal/engine"
+	"github.com/accrava/redactyl/internal/types"
 )
 
 var reMaybeSecret = regexp.MustCompile(`[A-Za-z0-9+/=_-]{20,}`) // broad token-ish
 var reContext = regexp.MustCompile(`(?i)(secret|token|password|api[_-]?key|authorization|bearer|aws)`)
 
-func EntropyNearbySecrets(path string, data []byte) []engine.Finding {
-	var out []engine.Finding
+func EntropyNearbySecrets(path string, data []byte) []types.Finding {
+	var out []types.Finding
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	line := 0
 	for sc.Scan() {
@@ -24,9 +24,9 @@ func EntropyNearbySecrets(path string, data []byte) []engine.Finding {
 		}
 		for _, m := range reMaybeSecret.FindAllString(txt, -1) {
 			if entropy(m) >= 4.0 && len(m) <= 200 {
-				out = append(out, engine.Finding{
+				out = append(out, types.Finding{
 					Path: path, Line: line, Match: m,
-					Detector: "entropy_context", Severity: engine.SevMed, Confidence: 0.6,
+					Detector: "entropy_context", Severity: types.SevMed, Confidence: 0.6,
 				})
 			}
 		}
