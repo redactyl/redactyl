@@ -1,0 +1,5 @@
+{
+  "items": {
+    "internal/detectors/privatekey.go|private_key_block|BEGIN PRIVATE KEY": true
+  }
+}

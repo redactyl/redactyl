@@ -5,7 +5,7 @@ import "github.com/accrava/redactyl/internal/types"
 type Detector func(path string, data []byte) []types.Finding
 
 var all = []Detector{
-	AWSKeys, GitHubToken, SlackToken, JWTToken, PrivateKeyBlock, EntropyNearbySecrets,
+	AWSKeys, GitHubToken, SlackToken, JWTToken, PrivateKeyBlock, EntropyNearbySecrets, StripeSecret,
 }
 
 func RunAll(path string, data []byte) []types.Finding {

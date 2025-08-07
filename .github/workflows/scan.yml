@@ -1,0 +1,21 @@
+name: Secret Scan
+on:
+  pull_request:
+    branches: [ main ]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Build redactyl
+        run: |
+          go version
+          go build -o bin/redactyl ./cmd/redactyl
+      - name: Scan PR diff and emit SARIF
+        run: |
+          ./bin/redactyl -base origin/${{ github.base_ref }} --sarif > results.sarif || echo "scan status captured"
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif

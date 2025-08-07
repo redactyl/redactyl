@@ -66,8 +66,10 @@ func main() {
 	// Output
 	switch {
 	case sarifOut:
-		fmt.Fprintln(os.Stderr, "SARIF output not implemented yet")
-		os.Exit(1)
+		if err := report.WriteSARIF(os.Stdout, newFindings); err != nil {
+			fmt.Fprintln(os.Stderr, "sarif error:", err)
+			os.Exit(2)
+		}
 	case jsonOut:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
