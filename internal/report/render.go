@@ -24,23 +24,24 @@ func PrintTable(w io.Writer, findings []types.Finding, opts PrintOptions) {
 	})
 	if len(findings) == 0 {
 		fmt.Fprintln(w, "No secrets found ✅")
-	}
-	// Column widths
-	maxDet := 8
-	for _, f := range findings {
-		if l := len(f.Detector); l > maxDet {
-			maxDet = l
+	} else {
+		// Column widths
+		maxDet := 8
+		for _, f := range findings {
+			if l := len(f.Detector); l > maxDet {
+				maxDet = l
+			}
 		}
-	}
-	// Header
-	fmt.Fprintf(w, "Findings: %d\n", len(findings))
-	for _, f := range findings {
-		sev := string(f.Severity)
-		if !opts.NoColor {
-			sev = colorSeverity(f.Severity)
+		// Header and rows
+		fmt.Fprintf(w, "Findings: %d\n", len(findings))
+		for _, f := range findings {
+			sev := string(f.Severity)
+			if !opts.NoColor {
+				sev = colorSeverity(f.Severity)
+			}
+			mask := maskValue(f.Match)
+			fmt.Fprintf(w, "%-6s %-*s %s:%d  %s\n", sev, maxDet, f.Detector, f.Path, f.Line, mask)
 		}
-		mask := maskValue(f.Match)
-		fmt.Fprintf(w, "%-6s %-*s %s:%d  %s\n", sev, maxDet, f.Detector, f.Path, f.Line, mask)
 	}
 	// Summary footer
 	high, med, low := 0, 0, 0

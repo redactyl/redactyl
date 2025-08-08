@@ -39,3 +39,4 @@ __pycache__/
 redactyl.baseline.json
 
 
+.redactylcache.json
