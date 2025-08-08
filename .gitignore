@@ -1,0 +1,41 @@
+# build artifacts
+bin/
+dist/
+build/
+out/
+
+# editor/OS files
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# caches and coverage
+.redactylcache.json
+coverage/
+*.coverprofile
+
+# dependency/vendor
+vendor/
+node_modules/
+
+# Python virtualenv (if any in repo)
+.venv/
+venv/
+__pycache__/
+
+# Go build cache (if present in repo scope)
+*.test
+
+# logs and archives
+*.log
+*.tar
+*.tgz
+*.gz
+*.zip
+*.7z
+
+# local config (if created)
+redactyl.baseline.json
+
+

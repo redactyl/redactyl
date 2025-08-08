@@ -25,6 +25,7 @@ var (
 	flagMaxBytes int64
 	flagEnable   string
 	flagDisable  string
+	flagGuide    bool
 )
 
 func init() {
@@ -44,6 +45,7 @@ func init() {
 	cmd.Flags().Int64Var(&flagMaxBytes, "max-bytes", 1<<20, "skip files larger than this")
 	cmd.Flags().StringVar(&flagEnable, "enable", "", "only run these detectors (comma-separated IDs)")
 	cmd.Flags().StringVar(&flagDisable, "disable", "", "disable these detectors (comma-separated IDs)")
+	cmd.Flags().BoolVar(&flagGuide, "guide", false, "print suggested remediation commands for findings")
 }
 
 func runScan(cmd *cobra.Command, _ []string) error {
@@ -129,6 +131,19 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		_ = enc.Encode(newFindings)
 	default:
 		report.PrintTable(os.Stdout, newFindings, report.PrintOptions{NoColor: flagNoColor, Duration: res.Duration, FilesScanned: res.FilesScanned})
+		if flagGuide && len(newFindings) > 0 {
+			fmt.Fprintln(os.Stderr, "\nSuggested remediation commands:")
+			for _, f := range newFindings {
+				// conservative guidance: if file looks like dotenv, suggest fix dotenv
+				lower := strings.ToLower(f.Path)
+				if strings.HasSuffix(lower, ".env") || strings.Contains(lower, ".env") {
+					fmt.Fprintln(os.Stderr, "  redactyl fix dotenv --from", f.Path, "--add-ignore --summary remediation.json")
+					continue
+				}
+				// otherwise suggest redact for the match span and path-based removal if binary/secret files
+				fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
+			}
+		}
 	}
 
 	if cmd.Flags().Changed("enable") || cmd.Flags().Changed("disable") {
@@ -139,6 +154,13 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		os.Exit(1)
 	}
 	return nil
+}
+
+// minimal regexp quoting to embed a literal in a single-quoted shell arg
+func regexpQuote(s string) string {
+	// escape backslashes and special regex meta. Keep it simple.
+	replacer := strings.NewReplacer(`\`, `\\`, `.`, `\.`, `*`, `\*`, `+`, `\+`, `?`, `\?`, `(`, `\(`, `)`, `\)`, `[`, `\[`, `]`, `\]`, `{`, `\{`, `}`, `\}`, `^`, `\^`, `$`, `\$`, `|`, `\|`)
+	return replacer.Replace(s)
 }
 
 func activeSetSummary(cfg engine.Config) string {
