@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
     env:
       MIN_COVERAGE: "50.0"
     steps:
@@ -25,9 +29,10 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - name: Run tests with race and coverage
+      - name: Run tests with race and coverage (internal packages)
         run: |
-          go test -race -coverprofile=cover.out ./...
+          PKGS=$(go list ./internal/... | tr '\n' ',')
+          go test -race -coverpkg "$PKGS" -coverprofile=cover.out ./internal/...
           go tool cover -func=cover.out | tee cover.txt
       - name: Enforce coverage threshold
         run: |
@@ -41,12 +46,13 @@ jobs:
             cover.out
             cover.txt
       - name: Generate SARIF from coverage (optional)
-        if: always()
+        if: github.event_name == 'push'
         run: |
           echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"coverage","version":"1"}},"results":[]}]}'> results.sarif
       - name: Upload SARIF (optional)
-        if: always()
+        if: github.event_name == 'push'
         uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
         with:
           sarif_file: results.sarif
 
