@@ -1,5 +1,11 @@
 ## Redactyl
 
+![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
+
+[![Tests](https://github.com/franzer/redactyl/actions/workflows/test.yml/badge.svg)](https://github.com/franzer/redactyl/actions/workflows/test.yml)
+[![Lint](https://github.com/franzer/redactyl/actions/workflows/lint.yml/badge.svg)](https://github.com/franzer/redactyl/actions/workflows/lint.yml)
+[![Vuln](https://github.com/franzer/redactyl/actions/workflows/vuln.yml/badge.svg)](https://github.com/franzer/redactyl/actions/workflows/vuln.yml)
+
 Find secrets in your repo with low noise. Redactyl scans your working tree, staged changes, diffs, or history and reports likely credentials and tokens.
 
 ### Features

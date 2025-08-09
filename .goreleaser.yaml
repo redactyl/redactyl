@@ -53,7 +53,7 @@ nfpms:
     formats: [deb, rpm, apk]
     maintainer: Franz <you@example.com>
     description: Find secrets in your repo with low noise.
-    license: MIT
+    license: Apache-2.0
     homepage: https://github.com/franzer/redactyl
     section: utils
     priority: optional
