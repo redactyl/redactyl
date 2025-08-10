@@ -29,7 +29,7 @@ func AppendIgnore(repoRoot, pattern string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	// ensure file ends with newline; OpenFile+append will just write
 	if _, err := f.WriteString(pattern + "\n"); err != nil {
 		return err
