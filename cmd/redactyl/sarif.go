@@ -32,10 +32,7 @@ func init() {
 			}
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
-			if err := enc.Encode(obj); err != nil {
-				return err
-			}
-			return nil
+			return enc.Encode(obj)
 		},
 	}
 	cmd.AddCommand(view)
