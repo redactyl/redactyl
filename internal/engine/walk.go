@@ -104,10 +104,10 @@ func looksNonTextMIME(path string, b []byte) bool {
 // CountTargets estimates the number of files to process based on cfg.
 // It mirrors selection logic used by Scan paths but avoids heavy reads.
 func CountTargets(cfg Config) (int, error) {
-    ign, errIgnore := ignore.Load(filepath.Join(cfg.Root, ".redactylignore"))
-    if errIgnore != nil {
-        return 0, nil
-    }
+	ign, errIgnore := ignore.Load(filepath.Join(cfg.Root, ".redactylignore"))
+	if errIgnore != nil {
+		return 0, nil
+	}
 	// history
 	if cfg.HistoryCommits > 0 {
 		entries, err := git.LastNCommits(cfg.Root, cfg.HistoryCommits)
@@ -178,7 +178,7 @@ func CountTargets(cfg Config) (int, error) {
 	}
 	// working tree
 	count := 0
-    _ = filepath.WalkDir(cfg.Root, func(p string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(cfg.Root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}

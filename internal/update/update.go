@@ -24,8 +24,8 @@ func configDir() string {
 	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
 		return filepath.Join(base, "redactyl")
 	}
-    home, err := os.UserHomeDir()
-    if err != nil || home == "" {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
 		return ""
 	}
 	return filepath.Join(home, ".config", "redactyl")
@@ -37,13 +37,13 @@ func loadCache() (cache, error) {
 	if dir == "" {
 		return c, errors.New("no config dir")
 	}
-    b, err := os.ReadFile(filepath.Join(dir, cacheFileName))
-    if err != nil {
+	b, err := os.ReadFile(filepath.Join(dir, cacheFileName))
+	if err != nil {
 		return c, err
 	}
-    if err := json.Unmarshal(b, &c); err != nil {
-        return c, err
-    }
+	if err := json.Unmarshal(b, &c); err != nil {
+		return c, err
+	}
 	return c, nil
 }
 
@@ -52,14 +52,14 @@ func saveCache(c cache) {
 	if dir == "" {
 		return
 	}
-    if err := os.MkdirAll(dir, 0755); err != nil {
-        return
-    }
-    b, err := json.MarshalIndent(c, "", "  ")
-    if err != nil {
-        return
-    }
-    _ = os.WriteFile(filepath.Join(dir, cacheFileName), b, 0644)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return
+	}
+	b, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(dir, cacheFileName), b, 0644)
 }
 
 func latestVersionOnline() (string, error) {

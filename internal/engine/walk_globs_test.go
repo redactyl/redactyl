@@ -1,12 +1,12 @@
 package engine
 
 import (
-    "context"
-    "os"
-    "path/filepath"
-    "testing"
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
 
-    "github.com/franzer/redactyl/internal/ignore"
+	"github.com/franzer/redactyl/internal/ignore"
 )
 
 func TestWalk_WithIncludeExcludeGlobs(t *testing.T) {
@@ -29,7 +29,7 @@ func TestWalk_WithIncludeExcludeGlobs(t *testing.T) {
 	// Include only *.go
 	cfg := Config{Root: dir, IncludeGlobs: "**/*.go", MaxBytes: 1 << 20}
 	var got []string
-    err := Walk(context.TODO(), cfg, ign, func(path string, _ []byte) { got = append(got, path) })
+	err := Walk(context.TODO(), cfg, ign, func(path string, _ []byte) { got = append(got, path) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestWalk_WithIncludeExcludeGlobs(t *testing.T) {
 	// Exclude *.md
 	got = nil
 	cfg = Config{Root: dir, ExcludeGlobs: "**/*.md", MaxBytes: 1 << 20}
-    if err := Walk(context.TODO(), cfg, ign, func(path string, _ []byte) { got = append(got, path) }); err != nil {
+	if err := Walk(context.TODO(), cfg, ign, func(path string, _ []byte) { got = append(got, path) }); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range got {

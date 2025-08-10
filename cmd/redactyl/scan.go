@@ -132,11 +132,11 @@ func runScan(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("sarif error: %w", err)
 		}
 	case flagJSON:
-        enc := json.NewEncoder(os.Stdout)
-        enc.SetIndent("", "  ")
-        if err := enc.Encode(newFindings); err != nil {
-            return err
-        }
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(newFindings); err != nil {
+			return err
+		}
 	default:
 		report.PrintTable(os.Stdout, newFindings, report.PrintOptions{NoColor: flagNoColor, Duration: res.Duration, FilesScanned: res.FilesScanned})
 		if flagGuide && len(newFindings) > 0 {

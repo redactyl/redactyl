@@ -34,14 +34,14 @@ func uploadFindings(rootPath, url, token string, noMeta bool, findings []core.Fi
 		repo, commit, branch := git.RepoMetadata(rootPath)
 		env.Repo, env.Commit, env.Branch = repo, commit, branch
 	}
-    body, err := json.Marshal(env)
-    if err != nil {
-        return err
-    }
-    req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-    if err != nil {
-        return err
-    }
+	body, err := json.Marshal(env)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Content-Type", "application/json")
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -51,7 +51,7 @@ func uploadFindings(rootPath, url, token string, noMeta bool, findings []core.Fi
 	if err != nil {
 		return err
 	}
-    defer func() { _ = resp.Body.Close() }()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("upload status %d", resp.StatusCode)
 	}
