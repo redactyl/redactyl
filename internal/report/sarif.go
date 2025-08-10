@@ -112,7 +112,10 @@ func WriteSARIF(w io.Writer, findings []types.Finding) error {
 		})
 	}
 	doc := sarif{Version: "2.1.0", Runs: []sarifRun{run}}
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(doc)
+    enc := json.NewEncoder(w)
+    enc.SetIndent("", "  ")
+    if err := enc.Encode(doc); err != nil {
+        return err
+    }
+    return nil
 }

@@ -82,7 +82,10 @@ func ScanWithStats(cfg Config) (Result, error) {
 	}
 	// working tree processing is done inline via Walk; staged/base/history use bounded parallelism
 
-	ign, _ := ignore.Load(filepath.Join(cfg.Root, ".redactylignore"))
+    ign, errIgnore := ignore.Load(filepath.Join(cfg.Root, ".redactylignore"))
+    if errIgnore != nil {
+        // non-fatal; proceed without ignore patterns
+    }
 	ctx := context.Background()
 
 	var out []types.Finding
