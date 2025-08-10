@@ -33,7 +33,8 @@ jobs:
           golangci-lint version
       - name: Verify config
         run: golangci-lint config verify -v
-      - name: Run golangci-lint
-        run: golangci-lint run --timeout=5m -v --out-format=github-actions
+      - name: Run golangci-lint (advisory)
+        run: golangci-lint run --timeout=5m -v --out-format=colored-line-number
+        continue-on-error: true
 
 

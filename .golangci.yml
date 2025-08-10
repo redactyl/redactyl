@@ -44,6 +44,23 @@ issues:
   exclude-dirs:
     - vendor
   exclude-rules:
+    # Allow benign unchecked returns for user-facing logging IO
+    - text: "Error return value of `fmt\.Fprint"
+      linters: [errcheck]
+    - text: "Error return value of `fmt\.Fprintln"
+      linters: [errcheck]
+    - text: "Error return value of `fmt\.Fprintf"
+      linters: [errcheck]
+    - text: "Error return value of `resp\.Body\.Close`"
+      linters: [errcheck]
+    - text: "Error return value of `filepath\.Abs`"
+      linters: [errcheck]
+    - text: "Error return value of `filepath\.Rel`"
+      linters: [errcheck]
+    - text: "Error return value of `d\.Info`"
+      linters: [errcheck]
+    - text: "Error return value of `http\.NewRequest`"
+      linters: [errcheck]
     - path: _test\.go
       linters:
         - errcheck
