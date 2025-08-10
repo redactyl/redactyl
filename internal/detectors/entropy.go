@@ -9,7 +9,7 @@ import (
 	"github.com/franzer/redactyl/internal/types"
 )
 
-var reMaybeSecret = regexp.MustCompile(`[A-Za-z0-9+/=_-]{20,}`) // broad token-ish
+var reMaybeSecret = regexp.MustCompile(`[A-Za-z0-9+/=_-]{20,200}`) // broad token-ish with upper bound
 var reContext = regexp.MustCompile(`(?i)(secret|token|password|api[_-]?key|authorization|bearer|aws)`)
 
 func EntropyNearbySecrets(path string, data []byte) []types.Finding {
