@@ -24,8 +24,8 @@ func configDir() string {
 	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
 		return filepath.Join(base, "redactyl")
 	}
-	home, _ := os.UserHomeDir()
-	if home == "" {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
 		return ""
 	}
 	return filepath.Join(home, ".config", "redactyl")
@@ -41,7 +41,9 @@ func loadCache() (cache, error) {
 	if err != nil {
 		return c, err
 	}
-	_ = json.Unmarshal(b, &c)
+	if err := json.Unmarshal(b, &c); err != nil {
+		return c, err
+	}
 	return c, nil
 }
 
@@ -50,8 +52,13 @@ func saveCache(c cache) {
 	if dir == "" {
 		return
 	}
-	_ = os.MkdirAll(dir, 0755)
-	b, _ := json.MarshalIndent(c, "", "  ")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return
+	}
+	b, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return
+	}
 	_ = os.WriteFile(filepath.Join(dir, cacheFileName), b, 0644)
 }
 

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	reOpenAIKey     = regexp.MustCompile(`\bsk-[A-Za-z0-9]{32,}\b`)
+	reOpenAIKey     = regexp.MustCompile(`\bsk-[A-Za-z0-9]{40,}\b`)
 	reOpenAIContext = regexp.MustCompile(`(?i)(openai|gpt|chatgpt|openai_api_key|OPENAI_API_KEY)`)
 )
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/franzer/redactyl/internal/git"
 	"github.com/franzer/redactyl/internal/types"
 	"github.com/franzer/redactyl/pkg/core"
 )
@@ -23,12 +24,24 @@ type uploadEnvelope struct {
 	Findings []core.Finding `json:"findings"`
 }
 
-func uploadFindings(url, token string, findings []core.Finding) error {
+func uploadFindings(rootPath, url, token string, noMeta bool, findings []core.Finding) error {
 	if len(findings) == 0 {
 		return nil
 	}
-	body, _ := json.Marshal(uploadEnvelope{Tool: "redactyl", Version: version, Schema: uploadSchemaVersion, Findings: findings})
-	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	env := uploadEnvelope{Tool: "redactyl", Version: version, Schema: uploadSchemaVersion, Findings: findings}
+	if !noMeta {
+		// Best-effort git metadata
+		repo, commit, branch := git.RepoMetadata(rootPath)
+		env.Repo, env.Commit, env.Branch = repo, commit, branch
+	}
+	body, err := json.Marshal(env)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Content-Type", "application/json")
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -38,7 +51,7 @@ func uploadFindings(url, token string, findings []core.Finding) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("upload status %d", resp.StatusCode)
 	}

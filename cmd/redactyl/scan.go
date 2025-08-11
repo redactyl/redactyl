@@ -16,18 +16,19 @@ import (
 )
 
 var (
-	flagPath        string
-	flagStaged      bool
-	flagHistory     int
-	flagBase        string
-	flagInclude     string
-	flagExclude     string
-	flagMaxBytes    int64
-	flagEnable      string
-	flagDisable     string
-	flagGuide       bool
-	flagUploadURL   string
-	flagUploadToken string
+	flagPath         string
+	flagStaged       bool
+	flagHistory      int
+	flagBase         string
+	flagInclude      string
+	flagExclude      string
+	flagMaxBytes     int64
+	flagEnable       string
+	flagDisable      string
+	flagGuide        bool
+	flagUploadURL    string
+	flagUploadToken  string
+	flagNoUploadMeta bool
 )
 
 func init() {
@@ -50,6 +51,7 @@ func init() {
 	cmd.Flags().BoolVar(&flagGuide, "guide", false, "print suggested remediation commands for findings")
 	cmd.Flags().StringVar(&flagUploadURL, "upload", "", "POST findings (JSON) to this URL after scan")
 	cmd.Flags().StringVar(&flagUploadToken, "upload-token", "", "Bearer token for upload auth")
+	cmd.Flags().BoolVar(&flagNoUploadMeta, "no-upload-metadata", false, "do not include repo/commit/branch in upload envelope")
 }
 
 func runScan(cmd *cobra.Command, _ []string) error {
@@ -85,17 +87,17 @@ func runScan(cmd *cobra.Command, _ []string) error {
 	if !flagJSON && !flagSARIF {
 		if !flagNoUpdateCheck {
 			if latest, newer, _ := update.Check(version, false); newer && latest != "" {
-				fmt.Fprintf(os.Stderr, "(new version available: v%s)  run 'redactyl update' to upgrade\n", latest)
+				_, _ = fmt.Fprintf(os.Stderr, "(new version available: v%s)  run 'redactyl update' to upgrade\n", latest)
 			}
 		}
 		if flagSelfUpdate {
 			// invoke in-band self update
 			if err := selfUpdate(); err == nil {
-				fmt.Fprintln(os.Stderr, "updated to latest; re-run command")
+				_, _ = fmt.Fprintln(os.Stderr, "updated to latest; re-run command")
 				return nil
 			}
 		}
-		fmt.Fprintf(os.Stderr, "Scanning %s with %d detectors...\n", abs, len(engine.DetectorIDs()))
+		_, _ = fmt.Fprintf(os.Stderr, "Scanning %s with %d detectors...\n", abs, len(engine.DetectorIDs()))
 	}
 
 	// Optional progress bar: simple textual bar
@@ -106,7 +108,7 @@ func runScan(cmd *cobra.Command, _ []string) error {
 			progressed++
 			if progressed%10 == 0 || progressed == total {
 				pct := float64(progressed) / float64(total) * 100
-				fmt.Fprintf(os.Stderr, "\r[%d/%d] %.0f%%", progressed, total, pct)
+				_, _ = fmt.Fprintf(os.Stderr, "\r[%d/%d] %.0f%%", progressed, total, pct)
 			}
 		}
 	}
@@ -115,7 +117,7 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("scan error: %w", err)
 	}
 	if total > 0 && !flagJSON && !flagSARIF {
-		fmt.Fprintln(os.Stderr)
+		_, _ = fmt.Fprintln(os.Stderr)
 	}
 
 	baseline, _ := report.LoadBaseline("redactyl.baseline.json")
@@ -132,33 +134,35 @@ func runScan(cmd *cobra.Command, _ []string) error {
 	case flagJSON:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		_ = enc.Encode(newFindings)
+		if err := enc.Encode(newFindings); err != nil {
+			return err
+		}
 	default:
 		report.PrintTable(os.Stdout, newFindings, report.PrintOptions{NoColor: flagNoColor, Duration: res.Duration, FilesScanned: res.FilesScanned})
 		if flagGuide && len(newFindings) > 0 {
-			fmt.Fprintln(os.Stderr, "\nSuggested remediation commands:")
+			_, _ = fmt.Fprintln(os.Stderr, "\nSuggested remediation commands:")
 			for _, f := range newFindings {
 				// conservative guidance: if file looks like dotenv, suggest fix dotenv
 				lower := strings.ToLower(f.Path)
 				if strings.HasSuffix(lower, ".env") || strings.Contains(lower, ".env") {
-					fmt.Fprintln(os.Stderr, "  redactyl fix dotenv --from", f.Path, "--add-ignore --summary remediation.json")
+					_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix dotenv --from", f.Path, "--add-ignore --summary remediation.json")
 					continue
 				}
 				// otherwise suggest redact for the match span and path-based removal if binary/secret files
-				fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
+				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
 		}
 	}
 
 	// Optional upload step: do not fail the scan on upload errors
 	if flagUploadURL != "" {
-		if err := uploadFindings(flagUploadURL, flagUploadToken, convertFindings(newFindings)); err != nil {
-			fmt.Fprintln(os.Stderr, "upload warning:", err)
+		if err := uploadFindings(abs, flagUploadURL, flagUploadToken, flagNoUploadMeta, convertFindings(newFindings)); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "upload warning:", err)
 		}
 	}
 
 	if cmd.Flags().Changed("enable") || cmd.Flags().Changed("disable") {
-		fmt.Fprintf(os.Stderr, "detectors active: %s\n", activeSetSummary(cfg))
+		_, _ = fmt.Fprintf(os.Stderr, "detectors active: %s\n", activeSetSummary(cfg))
 	}
 
 	if report.ShouldFail(newFindings, flagFailOn) {

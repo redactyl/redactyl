@@ -17,7 +17,9 @@ func LoadBaseline(path string) (Baseline, error) {
 	if err != nil {
 		return b, err
 	}
-	_ = json.Unmarshal(f, &b)
+	if err := json.Unmarshal(f, &b); err != nil {
+		return b, err
+	}
 	return b, nil
 }
 
@@ -26,7 +28,10 @@ func SaveBaseline(path string, findings []types.Finding) error {
 	for _, f := range findings {
 		b.Items[key(f)] = true
 	}
-	buf, _ := json.MarshalIndent(b, "", "  ")
+	buf, err := json.MarshalIndent(b, "", "  ")
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(path, buf, 0644)
 }
 

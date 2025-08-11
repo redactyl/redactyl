@@ -29,10 +29,18 @@ func AppendIgnore(repoRoot, pattern string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	// ensure file ends with newline; OpenFile+append will just write
 	if _, err := f.WriteString(pattern + "\n"); err != nil {
 		return err
 	}
 	return nil
+}
+
+// DefaultGeneratedIgnores returns common generated patterns that are safe to ignore.
+func DefaultGeneratedIgnores() []string {
+	return []string{
+		"*.pb.go",
+		"*.gen.*",
+	}
 }
