@@ -1,4 +1,4 @@
-module github.com/franzer/redactyl
+module github.com/redactyl/redactyl
 
 go 1.23.0
 

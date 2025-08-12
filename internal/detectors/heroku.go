@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 // Heroku API key captured with nearby 'heroku' context

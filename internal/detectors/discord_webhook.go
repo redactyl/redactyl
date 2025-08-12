@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reDiscordWebhook = regexp.MustCompile(`https://discord\.com/api/webhooks/\d+/[A-Za-z0-9_-]+`)

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/franzer/redactyl/internal/ignore"
+	"github.com/redactyl/redactyl/internal/ignore"
 )
 
 func TestWalk_WithIncludeExcludeGlobs(t *testing.T) {

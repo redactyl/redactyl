@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reAzOAIContext = regexp.MustCompile(`(?i)azure_openai|AZURE_OPENAI_API_KEY|api-key`)

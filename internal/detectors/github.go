@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 // PAT formats evolve; cover ghp_, gho_, ghu_, ghs_, ghr_

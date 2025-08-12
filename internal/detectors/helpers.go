@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 // Shared helper regexes for detectors that need generic token matching.

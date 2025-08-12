@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reWeaviateCtx = regexp.MustCompile(`(?i)WEAVIATE_API_KEY|weaviate`)

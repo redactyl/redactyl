@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reReplicate = regexp.MustCompile(`\br8_[A-Za-z0-9]{30,}\b`)

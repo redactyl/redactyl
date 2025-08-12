@@ -23,7 +23,7 @@ This document outlines two integration options for organizations.
 
 - Import the stable facade:
   ```go
-  import "github.com/franzer/redactyl/pkg/core"
+  import "github.com/redactyl/redactyl/pkg/core"
   ```
 - Use `core.Config`, `core.Finding`, and `core.Scan(cfg)`.
 - Go workspaces make local multi-repo development easy:

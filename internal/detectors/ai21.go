@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reAI21Ctx = regexp.MustCompile(`(?i)ai21|AI21_API_KEY`)

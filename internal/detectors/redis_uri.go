@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reRedisURI = regexp.MustCompile(`\bredis(?:\+ssl)?:/{2}:(?P<pw>[^@\s]+)@`)

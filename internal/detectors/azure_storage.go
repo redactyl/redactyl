@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reAzureConn = regexp.MustCompile(`(?i)AccountName=[^;\s]+;AccountKey=([A-Za-z0-9+/=]{80,});`)

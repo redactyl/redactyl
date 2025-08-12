@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/franzer/redactyl/internal/gitexec"
+	"github.com/redactyl/redactyl/internal/gitexec"
 	"github.com/spf13/cobra"
 )
 

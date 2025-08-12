@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/franzer/redactyl/internal/detectors"
+	"github.com/redactyl/redactyl/internal/detectors"
 	"github.com/spf13/cobra"
 )
 

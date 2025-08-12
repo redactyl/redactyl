@@ -6,7 +6,7 @@ import (
 	"math"
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reMaybeSecret = regexp.MustCompile(`[A-Za-z0-9+/=_-]{20,200}`) // broad token-ish with upper bound

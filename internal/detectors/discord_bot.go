@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reDiscordBotToken = regexp.MustCompile(`^[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}$`)

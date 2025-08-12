@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 // Firebase Web API key often same format as Google API key, detect with context

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/franzer/redactyl/internal/git"
-	"github.com/franzer/redactyl/internal/ignore"
+	"github.com/redactyl/redactyl/internal/git"
+	"github.com/redactyl/redactyl/internal/ignore"
 )
 
 // Walk traverses the working tree and invokes handle for each eligible file.

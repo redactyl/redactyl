@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/franzer/redactyl/internal/git"
-	"github.com/franzer/redactyl/internal/types"
-	"github.com/franzer/redactyl/pkg/core"
+	"github.com/redactyl/redactyl/internal/git"
+	"github.com/redactyl/redactyl/internal/types"
+	"github.com/redactyl/redactyl/pkg/core"
 )
 
 const uploadSchemaVersion = "1"

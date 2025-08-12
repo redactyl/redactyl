@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reAnthropic = regexp.MustCompile(`\bsk-ant-[A-Za-z0-9_-]{30,}\b`)

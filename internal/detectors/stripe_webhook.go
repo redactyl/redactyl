@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reStripeWebhook = regexp.MustCompile(`\bwhsec_[A-Za-z0-9]{16,}\b`)
