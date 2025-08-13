@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reGitLabPAT = regexp.MustCompile(`\bglpat-[A-Za-z0-9_-]{20}\b`)

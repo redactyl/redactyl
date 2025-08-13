@@ -12,11 +12,11 @@ import (
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
 	xxhash "github.com/cespare/xxhash/v2"
-	"github.com/franzer/redactyl/internal/cache"
-	"github.com/franzer/redactyl/internal/detectors"
-	"github.com/franzer/redactyl/internal/git"
-	"github.com/franzer/redactyl/internal/ignore"
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/cache"
+	"github.com/redactyl/redactyl/internal/detectors"
+	"github.com/redactyl/redactyl/internal/git"
+	"github.com/redactyl/redactyl/internal/ignore"
+	"github.com/redactyl/redactyl/internal/types"
 	"golang.org/x/sync/errgroup"
 )
 

@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reTelegram = regexp.MustCompile(`\b\d{9,10}:[A-Za-z0-9_-]{35,}\b`)

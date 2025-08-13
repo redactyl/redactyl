@@ -2,9 +2,9 @@
 
 ![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
 
-[![Tests](https://github.com/franzer/redactyl/actions/workflows/test.yml/badge.svg)](https://github.com/franzer/redactyl/actions/workflows/test.yml)
-[![Lint](https://github.com/franzer/redactyl/actions/workflows/lint.yml/badge.svg)](https://github.com/franzer/redactyl/actions/workflows/lint.yml)
-[![Vuln](https://github.com/franzer/redactyl/actions/workflows/vuln.yml/badge.svg)](https://github.com/franzer/redactyl/actions/workflows/vuln.yml)
+[![Tests](https://github.com/redactyl/redactyl/actions/workflows/test.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/test.yml)
+[![Lint](https://github.com/redactyl/redactyl/actions/workflows/lint.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/lint.yml)
+[![Vuln](https://github.com/redactyl/redactyl/actions/workflows/vuln.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/vuln.yml)
 
 Find secrets in your repo with low noise. Redactyl scans your working tree, staged changes, diffs, or history and reports likely credentials and tokens.
 
@@ -59,7 +59,7 @@ aws_session = boto3.Session(
 
 - Install globally (recommended):
   ```sh
-  go install github.com/franzer/redactyl@latest
+  go install github.com/redactyl/redactyl@latest
   # then use the binary directly if your GOBIN is on PATH
   redactyl --help
   ```
@@ -254,7 +254,7 @@ Categories and example IDs (run `redactyl detectors` for the full, up-to-date li
 
 ### Public facade (for integrations)
 - Stable API surface for external consumers:
-  - Import `github.com/franzer/redactyl/pkg/core`
+  - Import `github.com/redactyl/redactyl/pkg/core`
   - Types: `core.Config`, `core.Finding`
   - Entry: `core.Scan(cfg)`
 
@@ -360,12 +360,12 @@ jobs:
 - Commercial offerings (dashboard, org policies, PR gating, SSO, hosted option) are available.
 - Options:
   - Upload from OSS CLI to your server: `--json --upload` (see schemas in `docs/schemas/`).
-  - Or run scans in Enterprise workers via `github.com/franzer/redactyl/pkg/core`.
+  - Or run scans in Enterprise workers via `github.com/redactyl/redactyl/pkg/core`.
 - Inquiries: open a GitHub Discussion (Q&A) titled "Enterprise inquiry".
 
 ---
 
 Badges
 
-![Tests](https://github.com/franzer/redactyl/actions/workflows/test.yml/badge.svg)
-![Release](https://github.com/franzer/redactyl/actions/workflows/release.yml/badge.svg)
+![Tests](https://github.com/redactyl/redactyl/actions/workflows/test.yml/badge.svg)
+![Release](https://github.com/redactyl/redactyl/actions/workflows/release.yml/badge.svg)

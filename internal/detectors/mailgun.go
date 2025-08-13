@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reMailgunKey = regexp.MustCompile(`\bkey-[0-9a-f]{32}\b`)

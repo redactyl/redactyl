@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reCloudinary = regexp.MustCompile(`\bcloudinary://\d{6,}:[A-Za-z0-9_-]{10,}@`)

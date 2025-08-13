@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reNewRelicAPIKey = regexp.MustCompile(`\b(?:NRAK|NRAL|NRII|NRAA)-[A-Z0-9]{27,}\b`)

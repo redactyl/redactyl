@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/franzer/redactyl/internal/config"
-	"github.com/franzer/redactyl/internal/detectors"
+	"github.com/redactyl/redactyl/internal/config"
+	"github.com/redactyl/redactyl/internal/detectors"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

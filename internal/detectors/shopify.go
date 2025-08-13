@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reShopify = regexp.MustCompile(`\bshp(?:at|ua|ss)_[a-f0-9]{32,}\b`)

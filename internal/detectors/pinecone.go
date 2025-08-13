@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var rePineconeCtx = regexp.MustCompile(`(?i)PINECONE_API_KEY|pinecone`)

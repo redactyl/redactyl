@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reSendGrid = regexp.MustCompile(`\bSG\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{32,}\b`)

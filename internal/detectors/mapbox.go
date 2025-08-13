@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reMapboxToken = regexp.MustCompile(`\b(pk\.[A-Za-z0-9]{50,}|sk\.[A-Za-z0-9]{70,})\b`)

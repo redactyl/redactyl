@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reSnyk = regexp.MustCompile(`\bsnyk_[A-Za-z0-9]{30,}\b`)

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/franzer/redactyl/internal/ignore"
+	"github.com/redactyl/redactyl/internal/ignore"
 )
 
 func TestCountTargets_InlineIgnoreAndMaxBytes(t *testing.T) {

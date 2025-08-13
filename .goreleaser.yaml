@@ -11,7 +11,7 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X github.com/franzer/redactyl/cmd/redactyl.version={{.Version}}
+      - -X github.com/redactyl/redactyl/cmd/redactyl.version={{.Version}}
     goos:
       - linux
       - darwin
@@ -40,7 +40,7 @@ changelog:
 
 release:
   github:
-    owner: franzer
+    owner: redactyl
     name: redactyl
   draft: false
   prerelease: auto
@@ -52,7 +52,7 @@ nfpms:
     maintainer: Franz <you@example.com>
     description: Find secrets in your repo with low noise.
     license: Apache-2.0
-    homepage: https://github.com/franzer/redactyl
+    homepage: https://github.com/redactyl/redactyl
     section: utils
     priority: optional
     contents: []
