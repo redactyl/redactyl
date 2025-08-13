@@ -4,7 +4,6 @@ import (
 	"regexp"
 
 	"github.com/redactyl/redactyl/internal/types"
-
 )
 
 // Vercel tokens have multiple forms; cover common variants

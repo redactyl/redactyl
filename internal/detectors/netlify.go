@@ -4,7 +4,6 @@ import (
 	"regexp"
 
 	"github.com/redactyl/redactyl/internal/types"
-
 )
 
 var reNetlifyToken = regexp.MustCompile(`\bnf_[A-Za-z0-9]{20,}\b`)

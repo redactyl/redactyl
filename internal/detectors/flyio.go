@@ -2,9 +2,8 @@ package detectors
 
 import (
 	"regexp"
-  
-	"github.com/redactyl/redactyl/internal/types"
 
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reFlyIOToken = regexp.MustCompile(`\bflyv1_[A-Za-z0-9_-]{43,}\b`)

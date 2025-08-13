@@ -4,7 +4,6 @@ import (
 	"regexp"
 
 	"github.com/redactyl/redactyl/internal/types"
-
 )
 
 var rePrismaDataProxyURL = regexp.MustCompile(`\bprisma://[A-Za-z0-9._-]+/[^ \t\r\n'"<>]+`)

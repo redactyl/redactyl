@@ -4,7 +4,6 @@ import (
 	"regexp"
 
 	"github.com/redactyl/redactyl/internal/types"
-
 )
 
 var reDigitalOceanPAT = regexp.MustCompile(`\bdop_v1_[a-f0-9]{64}\b`)

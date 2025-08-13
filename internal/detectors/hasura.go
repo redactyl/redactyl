@@ -2,9 +2,8 @@ package detectors
 
 import (
 	"regexp"
-  
-	"github.com/redactyl/redactyl/internal/types"
 
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var (
