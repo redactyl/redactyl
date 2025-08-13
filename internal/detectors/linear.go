@@ -4,6 +4,7 @@ import (
 	"regexp"
 
 	"github.com/redactyl/redactyl/internal/types"
+
 )
 
 var reLinearAPIKey = regexp.MustCompile(`\blin_api_[A-Za-z0-9]{40}\b`)

@@ -2,8 +2,9 @@ package detectors
 
 import (
 	"regexp"
-
+  
 	"github.com/redactyl/redactyl/internal/types"
+
 )
 
 // Airtable personal access token

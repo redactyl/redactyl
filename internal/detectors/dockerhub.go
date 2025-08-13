@@ -4,6 +4,7 @@ import (
 	"regexp"
 
 	"github.com/redactyl/redactyl/internal/types"
+
 )
 
 var reDockerHubPAT = regexp.MustCompile(`\bdckr_pat_[A-Za-z0-9]{64}\b`)
