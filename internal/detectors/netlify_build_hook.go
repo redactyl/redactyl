@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reNetlifyBuildHook = regexp.MustCompile(`https://api\.netlify\.com/build_hooks/[A-Za-z0-9]{20,}`)

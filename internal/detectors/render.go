@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 var reRenderAPIKey = regexp.MustCompile(`\brnd_[A-Za-z0-9]{32,}\b`)

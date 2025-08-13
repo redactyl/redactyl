@@ -3,7 +3,7 @@ package detectors
 import (
 	"regexp"
 
-	"github.com/franzer/redactyl/internal/types"
+	"github.com/redactyl/redactyl/internal/types"
 )
 
 // Sentry auth token (Self-hosted or cloud) example prefix sntrys_
