@@ -260,6 +260,37 @@ func TestSendGrid_HuggingFace_WandB_Validators(t *testing.T) {
 	}
 }
 
+func TestMailgun_PyPI_AzureSAS_Cloudinary_NPMRC_RubyGems(t *testing.T) {
+	EnableValidators = true
+	mailgun := "key-0123456789abcdef0123456789abcdef"
+	pypi := "pypi-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	// Azure SAS URL with both sv and sig parameters
+	sas := "https://acct.blob.core.windows.net/container/blob.txt?sv=2021-01-01&sig=abcdef0123456789"
+	cloud := "cloudinary://123456:abcdefghij@"
+	npmrc := "//registry.npmjs.org/:_authToken=abcdEFGH1234"
+	rubygems := ":rubygems_api_key: deadbeefdeadbeefdeadbeefdeadbeef"
+	data := []byte(strings.Join([]string{mailgun, pypi, sas, cloud, npmrc, rubygems}, "\n"))
+	fs := RunAll("mixed.txt", data)
+	want := map[string]bool{
+		"mailgun_api_key":      false,
+		"pypi_token":           false,
+		"azure_sas_token":      false,
+		"cloudinary_url_creds": false,
+		"npmrc_auth_token":     false,
+		"rubygems_credentials": false,
+	}
+	for _, f := range fs {
+		if _, ok := want[f.Detector]; ok {
+			want[f.Detector] = true
+		}
+	}
+	for k, got := range want {
+		if !got {
+			t.Fatalf("expected finding for %s", k)
+		}
+	}
+}
+
 func TestDockerHub_NewRelic_Validators(t *testing.T) {
 	EnableValidators = true
 	dckr := "dckr_pat_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab"

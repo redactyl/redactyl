@@ -106,6 +106,42 @@ Validator notes:
 Validator notes:
 - URL shape `https://discord.com/api/webhooks/<id>/<token>`; overall length sanity-checked
 
+## mailgun_api_key
+Validator notes:
+- `key-` + 32 hex
+Structured keys:
+- JSON/YAML keys containing `mailgun`
+
+## pypi_token
+Validator notes:
+- `pypi-` + >=50 characters (base62/_/-)
+Structured keys:
+- JSON/YAML keys containing `pypi`
+
+## azure_sas_token
+Validator notes:
+- Azure Blob SAS URL with `sv` and `sig` parameters present
+Structured keys:
+- JSON/YAML keys containing `azure` or `sas`
+
+## cloudinary_url_creds
+Validator notes:
+- URL of the form `cloudinary://<id>:<secret>@`
+Structured keys:
+- JSON/YAML keys containing `cloudinary`
+
+## dockerhub_pat
+Validator notes:
+- `dckr_pat_` + 64 base62
+Structured keys:
+- JSON/YAML keys containing `docker` or `dockerhub`
+
+## newrelic_api_key
+Validator notes:
+- `NRAK|NRAL|NRII|NRAA-` + 27+ uppercase alnum
+Structured keys:
+- JSON/YAML keys containing `newrelic` or `nr`
+
 ## twilio_* (account_sid, api_key_sid, auth_token)
 Validator notes:
 - `AC`/`SK` + 32 hex for SIDs; auth token 32 hex

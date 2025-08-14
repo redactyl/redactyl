@@ -97,6 +97,34 @@ func StructuredFields(path string, data []byte) []types.Finding {
 				continue
 			}
 		}
+		// Mailgun
+		if strings.Contains(key, "mailgun") {
+			if m := reMailgunKey.FindString(val); m != "" {
+				out = append(out, types.Finding{Path: path, Line: f.Line, Match: m, Detector: "mailgun_api_key", Severity: types.SevHigh, Confidence: 0.95})
+				continue
+			}
+		}
+		// PyPI
+		if strings.Contains(strings.ToLower(key), "pypi") {
+			if m := rePyPI.FindString(val); m != "" {
+				out = append(out, types.Finding{Path: path, Line: f.Line, Match: m, Detector: "pypi_token", Severity: types.SevHigh, Confidence: 0.95})
+				continue
+			}
+		}
+		// Azure SAS
+		if strings.Contains(key, "azure") || strings.Contains(key, "sas") {
+			if m := reAzureSAS.FindString(val); m != "" {
+				out = append(out, types.Finding{Path: path, Line: f.Line, Match: m, Detector: "azure_sas_token", Severity: types.SevHigh, Confidence: 0.95})
+				continue
+			}
+		}
+		// Cloudinary
+		if strings.Contains(strings.ToLower(key), "cloudinary") {
+			if m := reCloudinary.FindString(val); m != "" {
+				out = append(out, types.Finding{Path: path, Line: f.Line, Match: m, Detector: "cloudinary_url_creds", Severity: types.SevHigh, Confidence: 0.95})
+				continue
+			}
+		}
 		// Netlify
 		if strings.Contains(key, "netlify") {
 			if m := reNetlifyToken.FindString(val); m != "" {

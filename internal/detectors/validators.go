@@ -333,6 +333,13 @@ var ruleValidators = map[string]findingValidator{
 	// DockerHub & NewRelic
 	"dockerhub_pat":    func(f types.Finding) (types.Finding, bool) { return f, len(f.Match) == len("dckr_pat_")+64 },
 	"newrelic_api_key": func(f types.Finding) (types.Finding, bool) { return f, v.LengthBetween(f.Match, 10, 100) },
+	// Remaining services
+	"mailgun_api_key":      func(f types.Finding) (types.Finding, bool) { return f, len(f.Match) == len("key-")+32 },
+	"pypi_token":           func(f types.Finding) (types.Finding, bool) { return f, v.LengthBetween(f.Match, len("pypi-")+50, 200) },
+	"azure_sas_token":      func(f types.Finding) (types.Finding, bool) { return f, v.LengthBetween(f.Match, 40, 200) },
+	"cloudinary_url_creds": func(f types.Finding) (types.Finding, bool) { return f, v.LengthBetween(f.Match, 20, 200) },
+	"npmrc_auth_token":     func(f types.Finding) (types.Finding, bool) { return f, v.LengthBetween(f.Match, 10, 200) },
+	"rubygems_credentials": func(f types.Finding) (types.Finding, bool) { return f, v.LengthBetween(f.Match, 20, 200) },
 }
 
 func applyValidators(fs []types.Finding) []types.Finding {
