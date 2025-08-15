@@ -324,6 +324,30 @@ Exit codes:
 - `1`: findings at or above threshold
 - `2`: error while scanning
 
+JSON shape:
+
+- By default, `--json` emits an array of findings.
+- For extended metadata, use `--json --json-extended` to emit an object with both findings and artifact stats:
+
+```json
+{
+  "findings": [ /* ... */ ],
+  "artifact_stats": { "bytes": 0, "entries": 0, "depth": 0, "time": 0 }
+}
+```
+
+SARIF notes:
+
+- SARIF 2.1.0 is written via `--sarif`. Artifact stats are included in `runs[0].properties.artifactStats`.
+
+CLI footer:
+
+- When deep scanning is enabled and any artifact limits are hit, a brief footer is printed with counters, e.g.:
+
+```
+Artifact limits: bytes=1 entries=0 depth=0 time=0
+```
+
 ## CI usage (GitHub Actions)
 
 ```yaml

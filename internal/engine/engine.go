@@ -329,6 +329,7 @@ func ScanWithStats(cfg Config) (Result, error) {
 			MaxEntries:      cfg.MaxEntries,
 			MaxDepth:        cfg.MaxDepth,
 			TimeBudget:      cfg.ScanTimeBudget,
+			Workers:         cfg.Threads,
 		}
 		emitArtifact := func(p string, b []byte) {
 			if cfg.DryRun {

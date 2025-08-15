@@ -44,6 +44,8 @@ var (
 	flagMaxEntries      int
 	flagMaxDepth        int
 	flagScanTimeBudget  time.Duration
+	// json shape
+	flagJSONExtended bool
 )
 
 func init() {
@@ -80,6 +82,8 @@ func init() {
 	cmd.Flags().IntVar(&flagMaxEntries, "max-entries", 1000, "max entries per archive/container before aborting")
 	cmd.Flags().IntVar(&flagMaxDepth, "max-depth", 2, "max recursion depth for nested archives")
 	cmd.Flags().DurationVar(&flagScanTimeBudget, "scan-time-budget", 10*time.Second, "time budget per artifact (e.g., 10s)")
+	// json shape
+	cmd.Flags().BoolVar(&flagJSONExtended, "json-extended", false, "when used with --json, include artifact stats in the JSON object")
 }
 
 func runScan(cmd *cobra.Command, _ []string) error {
@@ -204,14 +208,35 @@ func runScan(cmd *cobra.Command, _ []string) error {
 
 	switch {
 	case flagSARIF:
-		if err := report.WriteSARIF(os.Stdout, newFindings); err != nil {
+		stats := map[string]int{
+			"bytes":   res.ArtifactStats.AbortedByBytes,
+			"entries": res.ArtifactStats.AbortedByEntries,
+			"depth":   res.ArtifactStats.AbortedByDepth,
+			"time":    res.ArtifactStats.AbortedByTime,
+		}
+		if err := report.WriteSARIFWithStats(os.Stdout, newFindings, stats); err != nil {
 			return fmt.Errorf("sarif error: %w", err)
 		}
 	case flagJSON:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		if err := enc.Encode(newFindings); err != nil {
-			return err
+		if flagJSONExtended {
+			payload := map[string]any{
+				"findings": newFindings,
+				"artifact_stats": map[string]int{
+					"bytes":   res.ArtifactStats.AbortedByBytes,
+					"entries": res.ArtifactStats.AbortedByEntries,
+					"depth":   res.ArtifactStats.AbortedByDepth,
+					"time":    res.ArtifactStats.AbortedByTime,
+				},
+			}
+			if err := enc.Encode(payload); err != nil {
+				return err
+			}
+		} else {
+			if err := enc.Encode(newFindings); err != nil {
+				return err
+			}
 		}
 	case flagText:
 		report.PrintText(os.Stdout, newFindings, report.PrintOptions{NoColor: flagNoColor, Duration: res.Duration, FilesScanned: res.FilesScanned, TotalFiles: total, TotalFindings: len(res.Findings)})
@@ -228,6 +253,9 @@ func runScan(cmd *cobra.Command, _ []string) error {
 				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
 		}
+		if res.ArtifactStats.AbortedByBytes+res.ArtifactStats.AbortedByEntries+res.ArtifactStats.AbortedByDepth+res.ArtifactStats.AbortedByTime > 0 {
+			_, _ = fmt.Fprintf(os.Stderr, "\nArtifact limits: bytes=%d entries=%d depth=%d time=%d\n", res.ArtifactStats.AbortedByBytes, res.ArtifactStats.AbortedByEntries, res.ArtifactStats.AbortedByDepth, res.ArtifactStats.AbortedByTime)
+		}
 	case flagTable:
 		report.PrintTable(os.Stdout, newFindings, report.PrintOptions{NoColor: flagNoColor, Duration: res.Duration, FilesScanned: res.FilesScanned, TotalFiles: total, TotalFindings: len(res.Findings)})
 		if flagGuide && len(newFindings) > 0 {
@@ -242,6 +270,9 @@ func runScan(cmd *cobra.Command, _ []string) error {
 				// otherwise suggest redact for the match span and path-based removal if binary/secret files
 				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
+		}
+		if res.ArtifactStats.AbortedByBytes+res.ArtifactStats.AbortedByEntries+res.ArtifactStats.AbortedByDepth+res.ArtifactStats.AbortedByTime > 0 {
+			_, _ = fmt.Fprintf(os.Stderr, "\nArtifact limits: bytes=%d entries=%d depth=%d time=%d\n", res.ArtifactStats.AbortedByBytes, res.ArtifactStats.AbortedByEntries, res.ArtifactStats.AbortedByDepth, res.ArtifactStats.AbortedByTime)
 		}
 	default:
 		// Default to table format now
@@ -258,6 +289,9 @@ func runScan(cmd *cobra.Command, _ []string) error {
 				// otherwise suggest redact for the match span and path-based removal if binary/secret files
 				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
+		}
+		if res.ArtifactStats.AbortedByBytes+res.ArtifactStats.AbortedByEntries+res.ArtifactStats.AbortedByDepth+res.ArtifactStats.AbortedByTime > 0 {
+			_, _ = fmt.Fprintf(os.Stderr, "\nArtifact limits: bytes=%d entries=%d depth=%d time=%d\n", res.ArtifactStats.AbortedByBytes, res.ArtifactStats.AbortedByEntries, res.ArtifactStats.AbortedByDepth, res.ArtifactStats.AbortedByTime)
 		}
 	}
 

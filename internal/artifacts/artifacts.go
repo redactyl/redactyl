@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"sync"
+
 	"github.com/redactyl/redactyl/internal/ignore"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -26,6 +28,7 @@ type Limits struct {
 	MaxEntries      int
 	MaxDepth        int
 	TimeBudget      time.Duration
+	Workers         int
 }
 
 // Stats collects counters for artifacts aborted due to guardrails.
@@ -834,6 +837,8 @@ func looksLikeYAML(b []byte) bool {
 // ScanArchivesWithStats mirrors ScanArchivesWithFilter but also records guardrail abort reasons into stats.
 func ScanArchivesWithStats(root string, limits Limits, allow PathAllowFunc, emit func(path string, data []byte), stats *Stats) error {
 	ign, _ := ignore.Load(filepath.Join(root, ".redactylignore"))
+	type item struct{ full, rel string }
+	var items []item
 	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -851,23 +856,42 @@ func ScanArchivesWithStats(root string, limits Limits, allow PathAllowFunc, emit
 		if !isArchivePath(rel) {
 			return nil
 		}
-		// Avoid double-processing container images: skip .tar that looks like a Docker save
 		if strings.HasSuffix(strings.ToLower(rel), ".tar") {
 			ok, _ := isContainerTar(p)
 			if ok {
 				return nil
 			}
 		}
-		started := time.Now()
-		deadline := time.Time{}
-		if limits.TimeBudget > 0 {
-			deadline = started.Add(limits.TimeBudget)
-		}
-		var decompressed int64
-		var entries int
-		_ = scanArchiveFileWithStats(p, rel, limits, &decompressed, &entries, 0, deadline, emit, stats)
+		items = append(items, item{full: p, rel: rel})
 		return nil
 	})
+	workers := limits.Workers
+	if workers <= 0 {
+		workers = 1
+	}
+	ch := make(chan item, workers*2)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for it := range ch {
+				started := time.Now()
+				deadline := time.Time{}
+				if limits.TimeBudget > 0 {
+					deadline = started.Add(limits.TimeBudget)
+				}
+				var decompressed int64
+				var entries int
+				_ = scanArchiveFileWithStats(it.full, it.rel, limits, &decompressed, &entries, 0, deadline, emit, stats)
+			}
+		}()
+	}
+	for _, it := range items {
+		ch <- it
+	}
+	close(ch)
+	wg.Wait()
 	return nil
 }
 
