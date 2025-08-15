@@ -617,7 +617,7 @@ func scanNestedArchive(pathChain string, name string, blob []byte, limits Limits
 			fname := f.Name
 			if looksBinary(b) || looksNonTextMIME(fname, b) {
 				if depth < limits.MaxDepth && isArchivePath(fname) {
-					_ = scanNestedArchive(pathChain+"::"+fname, fname, b, limits, decompressed, entries, depth+1, deadline, emit)
+					_ = scanNestedArchive(pathChain+"::"+fname, fname, b, limits, decompressed, entries, depth+1, deadline, emit) //nolint:errcheck
 				}
 				continue
 			}
