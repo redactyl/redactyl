@@ -16,6 +16,12 @@ var EnableValidators = true
 // custom: reserved placeholder for user-provided local checks (future)
 var VerifyMode = "off"
 
+// DisabledValidatorsIDs holds detector IDs for which validator gating is disabled (config-driven).
+var DisabledValidatorsIDs = map[string]bool{}
+
+// DisabledStructuredIDs holds detector IDs for which structured findings are disabled (config-driven).
+var DisabledStructuredIDs = map[string]bool{}
+
 type findingValidator func(f types.Finding) (types.Finding, bool)
 
 var ruleValidators = map[string]findingValidator{
@@ -354,6 +360,10 @@ func applyValidators(fs []types.Finding) []types.Finding {
 	}
 	out := make([]types.Finding, 0, len(fs))
 	for _, f := range fs {
+		if DisabledValidatorsIDs[f.Detector] {
+			out = append(out, f)
+			continue
+		}
 		if vfn, ok := ruleValidators[f.Detector]; ok {
 			if nf, ok2 := vfn(f); ok2 {
 				out = append(out, nf)

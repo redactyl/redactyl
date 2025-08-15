@@ -32,6 +32,7 @@ func RunAll(path string, data []byte) []types.Finding {
 		out = append(out, StructuredFields(path, data)...)
 	}
 	out = applyValidators(out)
+	out = verifyFindings(out)
 	return dedupe(out)
 }
 

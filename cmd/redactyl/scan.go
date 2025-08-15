@@ -94,12 +94,34 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		DefaultExcludes:  flagDefaultExcludes,
 	}
 
-	// toggle validators
-	detectors.EnableValidators = !flagNoValidators
-	// toggle structured scanning
-	detectors.EnableStructured = !flagNoStructured
-	// soft verify mode
-	detectors.VerifyMode = flagVerify
+	// toggles: CLI overrides config when present
+	nv := pickBool(flagNoValidators, lcfg.NoValidators, gcfg.NoValidators)
+	ns := pickBool(flagNoStructured, lcfg.NoStructured, gcfg.NoStructured)
+	detectors.EnableValidators = !nv
+	detectors.EnableStructured = !ns
+	// verify: CLI > local > global
+	if v := pickString(flagVerify, lcfg.VerifyMode, gcfg.VerifyMode); v != "" {
+		detectors.VerifyMode = v
+	}
+	// per-detector disable lists (optional, comma-separated)
+	if lcfg.DisableValidators != nil || gcfg.DisableValidators != nil {
+		ids := pickString("", lcfg.DisableValidators, gcfg.DisableValidators)
+		for _, id := range strings.Split(ids, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				detectors.DisabledValidatorsIDs[id] = true
+			}
+		}
+	}
+	if lcfg.DisableStructured != nil || gcfg.DisableStructured != nil {
+		ids := pickString("", lcfg.DisableStructured, gcfg.DisableStructured)
+		for _, id := range strings.Split(ids, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				detectors.DisabledStructuredIDs[id] = true
+			}
+		}
+	}
 
 	// Friendly banner before scanning
 	if !flagJSON && !flagSARIF {

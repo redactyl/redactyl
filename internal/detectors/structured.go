@@ -50,7 +50,7 @@ func StructuredFields(path string, data []byte) []types.Finding {
 		val = strings.TrimSuffix(val, "\"")
 
 		// OpenAI
-		if strings.Contains(key, "openai") && v.LooksLikeOpenAIKey(val) {
+		if strings.Contains(key, "openai") && !DisabledStructuredIDs["openai_api_key"] && v.LooksLikeOpenAIKey(val) {
 			out = append(out, types.Finding{Path: path, Line: f.Line, Match: val, Detector: "openai_api_key", Severity: types.SevHigh, Confidence: 0.96})
 			continue
 		}

@@ -279,6 +279,9 @@ Categories and example IDs (run `redactyl detectors` for the full, up-to-date li
   - Validators: provider-specific prefix/length/alphabet checks and structural decoding (e.g., JWT base64url segments)
 - You can tune minimum confidence via `--min-confidence`. Strongly validated matches tend to score higher.
 
+#### Soft verify (optional)
+- `--verify safe` applies additional local-only sanity checks after validators to further reduce noise. Examples: stricter length windows on some tokens and URL shape parsing for webhooks. No network calls or data exfiltration are performed.
+
 ### Output formats
 - Table (default): formatted table with borders and alignment for easy reading
 - Text: plain columnar output with severity, detector, location, and redacted match (use `--text`)

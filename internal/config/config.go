@@ -10,15 +10,20 @@ import (
 
 // FileConfig is the on-disk YAML configuration shape for Redactyl.
 type FileConfig struct {
-	Include         *string  `yaml:"include"`
-	Exclude         *string  `yaml:"exclude"`
-	MaxBytes        *int64   `yaml:"max_bytes"`
-	Enable          *string  `yaml:"enable"`
-	Disable         *string  `yaml:"disable"`
-	Threads         *int     `yaml:"threads"`
-	MinConfidence   *float64 `yaml:"min_confidence"`
-	NoColor         *bool    `yaml:"no_color"`
-	DefaultExcludes *bool    `yaml:"default_excludes"`
+	Include           *string  `yaml:"include"`
+	Exclude           *string  `yaml:"exclude"`
+	MaxBytes          *int64   `yaml:"max_bytes"`
+	Enable            *string  `yaml:"enable"`
+	Disable           *string  `yaml:"disable"`
+	Threads           *int     `yaml:"threads"`
+	MinConfidence     *float64 `yaml:"min_confidence"`
+	NoColor           *bool    `yaml:"no_color"`
+	DefaultExcludes   *bool    `yaml:"default_excludes"`
+	NoValidators      *bool    `yaml:"no_validators"`
+	NoStructured      *bool    `yaml:"no_structured"`
+	VerifyMode        *string  `yaml:"verify"`
+	DisableValidators *string  `yaml:"disable_validators"`
+	DisableStructured *string  `yaml:"disable_structured"`
 }
 
 // LoadFile reads a YAML config file from the provided path.
