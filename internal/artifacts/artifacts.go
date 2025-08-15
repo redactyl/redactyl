@@ -895,7 +895,7 @@ func ScanArchivesWithStats(root string, limits Limits, allow PathAllowFunc, emit
 				}
 				var decompressed int64
 				var entries int
-				_ = scanArchiveFileWithStats(it.full, it.rel, limits, &decompressed, &entries, 0, deadline, emit, stats)
+				_ = scanArchiveFileWithStats(it.full, it.rel, limits, &decompressed, &entries, 0, deadline, emit, stats) //nolint:errcheck
 			}
 		}()
 	}
