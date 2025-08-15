@@ -311,6 +311,21 @@ func TestScanArchivesWithStats_DepthCounter(t *testing.T) {
 	}
 }
 
+func TestScanArchivesWithStats_TimeCounter(t *testing.T) {
+	dir := t.TempDir()
+	// Create a tar.gz with several files so we attempt reads
+	tgz := filepath.Join(dir, "archive.tgz")
+	makeTarGz(t, tgz, map[string]string{"a.txt": "1", "b.txt": "2", "c.txt": "3"})
+
+	stats := &Stats{}
+	// Extremely small time budget to trigger time abort immediately
+	lim := Limits{MaxArchiveBytes: 1 << 20, MaxEntries: 100, MaxDepth: 2, TimeBudget: 1}
+	_ = ScanArchivesWithStats(dir, lim, nil, func(string, []byte) {}, stats)
+	if stats.AbortedByTime == 0 {
+		t.Fatalf("expected time abort to be recorded; got %+v", *stats)
+	}
+}
+
 func TestScanIaC_TerraformStateSelective(t *testing.T) {
 	dir := t.TempDir()
 	// Small tfstate with sensitive-looking keys

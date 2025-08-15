@@ -70,9 +70,18 @@ func Scan(cfg Config) ([]types.Finding, error) {
 
 // Result contains findings and basic scan statistics.
 type Result struct {
-	Findings     []types.Finding
-	FilesScanned int
-	Duration     time.Duration
+	Findings      []types.Finding
+	FilesScanned  int
+	Duration      time.Duration
+	ArtifactStats DeepStats
+}
+
+// DeepStats summarizes artifact scanning abort reasons.
+type DeepStats struct {
+	AbortedByBytes   int
+	AbortedByEntries int
+	AbortedByDepth   int
+	AbortedByTime    int
 }
 
 // ScanWithStats runs a scan and returns findings along with timing and counts.
@@ -339,13 +348,14 @@ func ScanWithStats(cfg Config) (Result, error) {
 		}
 		// Reuse include/exclude globs to filter which artifact filenames are processed
 		allowArtifact := func(rel string) bool { return allowedByGlobs(rel, cfg) }
+		var artStats artifacts.Stats
 		if cfg.ScanArchives {
-			if err := artifacts.ScanArchivesWithFilter(cfg.Root, lim, allowArtifact, emitArtifact); err != nil {
+			if err := artifacts.ScanArchivesWithStats(cfg.Root, lim, allowArtifact, emitArtifact, &artStats); err != nil {
 				_ = fmt.Errorf("archives scan: %w", err)
 			}
 		}
 		if cfg.ScanContainers {
-			if err := artifacts.ScanContainersWithFilter(cfg.Root, lim, allowArtifact, emitArtifact); err != nil {
+			if err := artifacts.ScanContainersWithStats(cfg.Root, lim, allowArtifact, emitArtifact, &artStats); err != nil {
 				_ = fmt.Errorf("containers scan: %w", err)
 			}
 		}
@@ -353,6 +363,12 @@ func ScanWithStats(cfg Config) (Result, error) {
 			if err := artifacts.ScanIaCWithFilter(cfg.Root, lim, allowArtifact, emitArtifact); err != nil {
 				_ = fmt.Errorf("iac scan: %w", err)
 			}
+		}
+		result.ArtifactStats = DeepStats{
+			AbortedByBytes:   artStats.AbortedByBytes,
+			AbortedByEntries: artStats.AbortedByEntries,
+			AbortedByDepth:   artStats.AbortedByDepth,
+			AbortedByTime:    artStats.AbortedByTime,
 		}
 	}
 
