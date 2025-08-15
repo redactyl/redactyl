@@ -538,7 +538,7 @@ func scanZipReader(archivePath string, limits Limits, decompressed *int64, entri
 			name := f.Name
 			if looksBinary(b) || looksNonTextMIME(name, b) {
 				if depth < limits.MaxDepth && isArchivePath(name) {
-					_ = scanNestedArchive(archivePath+"::"+name, name, b, limits, decompressed, entries, depth+1, deadline, emit)
+					_ = scanNestedArchive(archivePath+"::"+name, name, b, limits, decompressed, entries, depth+1, deadline, emit) //nolint:errcheck
 				}
 				continue
 			}
@@ -866,7 +866,10 @@ func ScanArchivesWithStats(root string, limits Limits, allow PathAllowFunc, emit
 			return nil
 		}
 		if strings.HasSuffix(strings.ToLower(rel), ".tar") {
-			ok, _ := isContainerTar(p)
+			ok, ierr := isContainerTar(p)
+			if ierr != nil {
+				return nil
+			}
 			if ok {
 				return nil
 			}
