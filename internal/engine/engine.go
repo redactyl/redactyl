@@ -330,6 +330,10 @@ func ScanWithStats(cfg Config) (Result, error) {
 			TimeBudget:      cfg.ScanTimeBudget,
 			Workers:         cfg.Threads,
 		}
+		// Establish a global deadline across all artifacts if a time budget is provided
+		if cfg.ScanTimeBudget > 0 {
+			lim.GlobalDeadline = time.Now().Add(cfg.ScanTimeBudget)
+		}
 		emitArtifact := func(p string, b []byte) {
 			if cfg.DryRun {
 				return
