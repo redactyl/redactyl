@@ -1,6 +1,7 @@
 package redactyl
 
 import (
+	"archive/tar"
 	"bytes"
 	"encoding/json"
 	"os"
@@ -66,6 +67,110 @@ func TestCLI_SARIF_Shape(t *testing.T) {
 	}
 	if doc["version"] != "2.1.0" {
 		t.Fatalf("expected SARIF 2.1.0")
+	}
+}
+
+// New tests for extended JSON and footer counters
+func TestCLI_JSONExtended_IncludesStats(t *testing.T) {
+	dir := t.TempDir()
+	cmd := exec.Command("go", "run", ".", "scan", "--json", "--json-extended", "-p", dir)
+	cmd.Dir = filepath.Clean(filepath.Join("..", ".."))
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatalf("json-extended unmarshal: %v\n%s", err, out.String())
+	}
+	if _, ok := doc["findings"].([]any); !ok {
+		t.Fatalf("expected 'findings' array in extended JSON")
+	}
+	if _, ok := doc["artifact_stats"].(map[string]any); !ok {
+		t.Fatalf("expected 'artifact_stats' object in extended JSON")
+	}
+}
+
+func TestCLI_JSONExtended_StatsNonZeroOnAbort(t *testing.T) {
+	// Create a small tar with two entries and force max-entries=1 to trigger abort
+	dir := t.TempDir()
+	tarPath := filepath.Join(dir, "file.tar")
+	{
+		f, err := os.Create(tarPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tw := tar.NewWriter(f)
+		_ = tw.WriteHeader(&tar.Header{Name: "a.txt", Mode: 0600, Size: int64(len("hello"))})
+		_, _ = tw.Write([]byte("hello"))
+		_ = tw.WriteHeader(&tar.Header{Name: "b.txt", Mode: 0600, Size: int64(len("world"))})
+		_, _ = tw.Write([]byte("world"))
+		_ = tw.Close()
+		_ = f.Close()
+	}
+	cmd := exec.Command("go", "run", ".", "scan", "--json", "--json-extended", "--archives", "--max-entries", "1", "-p", dir)
+	cmd.Dir = filepath.Clean(filepath.Join("..", ".."))
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = os.Stderr
+	_ = cmd.Run() // ignore non-zero exit
+	var doc map[string]any
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatalf("json unmarshal: %v\n%s", err, out.String())
+	}
+	stats, ok := doc["artifact_stats"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected artifact_stats in extended JSON")
+	}
+	if e, ok := stats["entries"].(float64); !ok || e <= 0 {
+		t.Fatalf("expected non-zero entries abort counter; got stats=%#v", stats)
+	}
+}
+
+func TestCLI_SARIF_StatsNonZeroOnAbort(t *testing.T) {
+	// Same abort scenario, but assert SARIF run.properties.artifactStats
+	dir := t.TempDir()
+	tarPath := filepath.Join(dir, "file.tar")
+	{
+		f, err := os.Create(tarPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tw := tar.NewWriter(f)
+		_ = tw.WriteHeader(&tar.Header{Name: "a.txt", Mode: 0600, Size: int64(len("hello"))})
+		_, _ = tw.Write([]byte("hello"))
+		_ = tw.WriteHeader(&tar.Header{Name: "b.txt", Mode: 0600, Size: int64(len("world"))})
+		_, _ = tw.Write([]byte("world"))
+		_ = tw.Close()
+		_ = f.Close()
+	}
+	cmd := exec.Command("go", "run", ".", "scan", "--sarif", "--archives", "--max-entries", "1", "-p", dir)
+	cmd.Dir = filepath.Clean(filepath.Join("..", ".."))
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = os.Stderr
+	_ = cmd.Run()
+	var sarif map[string]any
+	if err := json.Unmarshal(out.Bytes(), &sarif); err != nil {
+		t.Fatalf("sarif unmarshal: %v\n%s", err, out.String())
+	}
+	runs, _ := sarif["runs"].([]any)
+	if len(runs) == 0 {
+		t.Fatal("expected runs")
+	}
+	run := runs[0].(map[string]any)
+	props, _ := run["properties"].(map[string]any)
+	if props == nil {
+		t.Fatal("expected run.properties")
+	}
+	as, _ := props["artifactStats"].(map[string]any)
+	if as == nil {
+		t.Fatal("expected run.properties.artifactStats")
+	}
+	if e, ok := as["entries"].(float64); !ok || e <= 0 {
+		t.Fatalf("expected non-zero entries abort counter in SARIF; got: %#v", as)
 	}
 }
 
