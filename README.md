@@ -1,158 +1,169 @@
-## Redactyl
+# Redactyl
 
-![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
-
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Tests](https://github.com/redactyl/redactyl/actions/workflows/test.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/test.yml)
 [![Lint](https://github.com/redactyl/redactyl/actions/workflows/lint.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/lint.yml)
 [![Vuln](https://github.com/redactyl/redactyl/actions/workflows/vuln.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/vuln.yml)
-
 [![Release](https://github.com/redactyl/redactyl/actions/workflows/release.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/release.yml)
 
-Find secrets in your repo with low noise. Redactyl scans your working tree, staged changes, diffs, or history and reports likely credentials and tokens.
 
-### Features
-- Fast multi-threaded scanning with size limits and binary detection
-- Worktree, staged, history (last N commits), or diff vs base branch
-- Detector enable/disable controls
-- Baseline file to suppress known findings
+Find secrets in your repo with **low noise**. Redactyl scans your working tree, staged changes, diffs, or history and reports likely credentials and tokens.
+
+## Features
+
+- Fast, multi‑threaded scanning with size limits and binary detection
+- Targets: worktree, staged, history (last N commits), or diff vs base branch
+- Detector controls: enable/disable by ID; configurable minimum confidence
+- Baseline suppression file for known findings
 - Outputs: table (default), JSON, SARIF 2.1.0
-- Gitignore-style path ignores via `.redactylignore`
-- Progress display and colorized severities; summary footer (findings, duration, files scanned)
+- Gitignore‑style path ignores via `.redactylignore`
+- Clear progress, colorized severities, and summary footer (findings, duration, files scanned)
 - Incremental scan cache for speed (`.redactylcache.json`)
-- Config file support with precedence: CLI > local `.redactyl.yml` > global `~/.config/redactyl/config.yml`
-- Remediation:
-  - Forward fixes: remove tracked files; redact in-place via regex; generate `.env.example`
+- Config precedence: **CLI > local `.redactyl.yml` > global `~/.config/redactyl/config.yml`**
+- Remediation helpers:
+  - Forward fixes: remove tracked files; in‑place redaction via regex; generate `.env.example`
   - History rewrite helpers via `git filter-repo` (path, pattern, replace) with `--dry-run` and summary output
-- Developer integrations: pre-commit hook generator; GitHub Actions template
-- Update experience: version printing, update checks, and self-update command
+- Developer integrations: pre‑commit hook generator; GitHub Actions template
+- Update experience: version printing, update checks, and self‑update command
 - SARIF viewer and detector test mode
-- CI-friendly exit codes
+- CI‑friendly exit codes
 
-### AI-assisted development
-- Modern AI coding assistants (Copilot, ChatGPT, etc.) frequently suggest realistic placeholder credentials that can accidentally get committed
-- Redactyl's context-aware detection catches both human mistakes and AI-generated secrets that traditional pattern-only scanners miss
-- Protects against AI-suggested keys that match real service formats but appear harmless in isolation
+## Table of contents
 
-Common AI-generated risks:
-```python
-# AI assistants often suggest code like this:
-openai_client = OpenAI(
-    api_key="sk-1234567890abcdef..."  # Looks fake but matches real format
-)
-stripe.api_key = "sk_test_abc123..."   # Valid test key structure
-aws_session = boto3.Session(
-    aws_access_key_id="AKIA1234567890123456"  # Proper AWS key format
-)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Deep scanning](#deep-scanning)
+- [Detectors](#detectors)
+- [How detection works](#how-detection-works)
+- [Baseline](#baseline)
+- [.redactylignore](#redactylignore)
+- [Remediation](#remediation)
+- [Output & Exit codes](#output--exit-codes)
+- [CI usage](#ci-usage-github-actions)
+- [Pre-commit hook](#pre-commit-hook)
+- [GitHub Action template](#github-action-template)
+- [Other CI templates](#other-ci-templates)
+- [Privacy & Telemetry](#privacy--telemetry)
+- [AI‑assisted development](#ai-assisted-development)
+- [Public Go API](#public-go-api)
+- [Updates & Changelog](#updates--changelog)
+- [Versioning & Compatibility](#versioning--compatibility)
+- [License](#license)
+- [Contributing](#contributing)
+- [Enterprise](#enterprise)
+
+## Installation
+
+> If you built locally, replace `redactyl` with `./bin/redactyl` in all commands below.
+
+Build from source (repo root):
+
+```sh
+make build
+redactyl --help
 ```
-- Traditional regex-only scanners may miss these because they lack context
-- Redactyl combines pattern detection with contextual analysis to catch AI-suggested credentials before they reach production
 
-### Install
-- Build locally (repo root):
-  ```sh
-  make build
-  ./bin/redactyl --help
-  ```
-- Or:
-  ```sh
-  go build -o bin/redactyl .
-  go install .  # installs to $(go env GOBIN) or $(go env GOPATH)/bin
-  ```
+Or with Go directly:
 
-- Install globally (recommended):
-  ```sh
-  go install github.com/redactyl/redactyl@latest
-  # then use the binary directly if your GOBIN is on PATH
-  redactyl --help
-  ```
+```sh
+go build -o bin/redactyl .
+go install .  # installs to $(go env GOBIN) or $(go env GOPATH)/bin
+```
 
-- DEB/RPM/APK (after first release): download from Releases and install via your package manager.
+Install globally (recommended):
 
-- Tip: to use the locally built binary without typing ./bin/, add it to PATH for this shell:
-  ```sh
-  export PATH="$PWD/bin:$PATH"
-  ```
+```sh
+go install github.com/redactyl/redactyl@latest
+redactyl --help
+```
 
-### Quick start
-- Default scan:
-  ```sh
-  ./bin/redactyl scan
-  ```
-  If installed globally:
-  ```sh
-  redactyl scan
-  ```
-- With guidance (suggested remediation commands):
-  ```sh
-  ./bin/redactyl scan --guide
-  ```
-  If installed globally:
-  ```sh
-  redactyl scan --guide
-  ```
-- JSON:
-  ```sh
-  ./bin/redactyl scan --json
-  ```
-  If installed globally:
-  ```sh
-  redactyl scan --json
-  ```
-- SARIF:
-  ```sh
-  ./bin/redactyl scan --sarif > redactyl.sarif.json
-  ```
-  If installed globally:
-  ```sh
-  redactyl scan --sarif > redactyl.sarif.json
-  ```
-- Text format:
-  ```sh
-  ./bin/redactyl scan --text
-  ```
-  If installed globally:
-  ```sh
-  redactyl scan --text
-  ```
-- Staged changes only:
-  ```sh
-  ./bin/redactyl scan --staged
-  ```
-- Last N commits:
-  ```sh
-  ./bin/redactyl scan --history 5
-  ```
-- Diff vs base branch:
-  ```sh
-  ./bin/redactyl scan --base main
-  ```
-- Performance:
-  ```sh
-  ./bin/redactyl scan --threads 4 --max-bytes 2097152
-  ```
+Packages (after first release): download DEB/RPM/APK from Releases and install via your package manager.
 
-### Config
-- Redactyl reads configuration from, in order of precedence (highest first):
-  1) CLI flags
-  2) Local file: `.redactyl.yml` at repo root
-  3) Global file: `~/.config/redactyl/config.yml`
-- Fields include `include`, `exclude`, `maxBytes`, `threads`, `enable`, `disable`, `minConfidence`, `noColor`, etc.
+Tip: add the local `bin/` to PATH for this shell:
 
-#### Generate a config
-- Create a starter config with all detectors enabled (default preset is standard):
-  ```sh
-  ./bin/redactyl config init
-  ```
-- Minimal preset (critical detectors only):
-  ```sh
-  ./bin/redactyl config init --preset minimal --min-confidence 0.85
-  ```
-- Custom selection via `--enable`/`--disable`:
-  ```sh
-  ./bin/redactyl config init --enable "aws_access_key,aws_secret_key,private_key_block,github_token,openai_api_key"
-  ```
+```sh
+export PATH="$PWD/bin:$PATH"
+```
 
-Example `.redactyl.yml`:
+## Quick start
+
+Default scan:
+
+```sh
+redactyl scan
+```
+
+With guidance (suggested remediation commands):
+
+```sh
+redactyl scan --guide
+```
+
+JSON output:
+
+```sh
+redactyl scan --json
+```
+
+SARIF output:
+
+```sh
+redactyl scan --sarif > redactyl.sarif.json
+```
+
+Text‑only format:
+
+```sh
+redactyl scan --text
+```
+
+Scope control:
+
+```sh
+redactyl scan --staged                 # staged changes only
+redactyl scan --history 5              # last N commits
+redactyl scan --base main              # diff vs base branch
+```
+
+Performance tuning:
+
+```sh
+redactyl scan --threads 4 --max-bytes 2097152
+```
+
+## Configuration
+
+Redactyl reads configuration in order of precedence (highest first):
+
+1. CLI flags
+2. Local file: `.redactyl.yml` at repo root
+3. Global file: `~/.config/redactyl/config.yml`
+
+Key fields include `include`, `exclude`, `max_bytes`, `threads`, `enable`, `disable`, `min_confidence`, `no_color`, etc.
+
+### Generate a config
+
+Starter config (default preset):
+
+```sh
+redactyl config init
+```
+
+Minimal preset (critical detectors only):
+
+```sh
+redactyl config init --preset minimal --min-confidence 0.85
+```
+
+Custom selection via `--enable`/`--disable`:
+
+```sh
+redactyl config init --enable "aws_access_key,aws_secret_key,private_key_block,github_token,openai_api_key"
+```
+
+**Example `.redactyl.yml`:**
+
 ```yaml
 enable: aws_access_key,aws_secret_key,private_key_block,github_token,jwt
 max_bytes: 1048576
@@ -160,72 +171,116 @@ threads: 0
 min_confidence: 0.85
 default_excludes: true
 no_color: false
+# Optional deep scanning toggles and limits
+archives: false
+containers: false
+iac: false
+max_archive_bytes: 33554432 # 32 MiB
+max_entries: 1000
+max_depth: 2
+scan_time_budget: 10s
 ```
 
-### Baseline
-- Update the baseline from the current scan results:
-  ```sh
-  ./bin/redactyl baseline update
-  ```
-- Baseline file: `redactyl.baseline.json`
-- The baseline suppresses previously recorded findings; only new findings are reported.
+## Deep scanning
 
-### Ignoring paths
-- Create `.redactylignore` at your repo root (gitignore syntax). Example:
-  ```
-  # node artifacts
-  node_modules/
-  dist/
-  *.min.js
+- Never extracts to disk; entries are streamed and filtered as text before detectors run.
+- Virtual paths indicate origin inside an artifact, e.g.:
+  - `archive.zip::docs/config.txt`
+  - `image.tar::<layerID>/etc/app.yaml`
+  - Nested: `outer.zip::inner.tgz::path/in/file.txt`
+- Guardrails abort per‑artifact scanning early on size, entry count, depth, or time budgets.
+- Durations use Go‑style syntax (e.g., `5s`, `2m`). Sizes are bytes.
+- Artifact filenames are filtered by `.redactylignore` and include/exclude globs before opening.
 
-  # test data
-  testdata/**
-  ```
+Examples:
+
+```sh
+redactyl scan --archives
+redactyl scan --containers --max-archive-bytes 67108864 --scan-time-budget 5s
+```
+
+## Baseline
+
+Update the baseline from current scan results:
+
+```sh
+redactyl baseline update
+```
+
+- File: `redactyl.baseline.json`
+- Suppresses previously recorded findings; only new findings are reported.
+
+## .redactylignore
+
+Create `.redactylignore` at your repo root (gitignore syntax). Example:
+
+```
+# node artifacts
+node_modules/
+dist/
+*.min.js
+
+# test data
+testdata/**
+```
+
 - Paths matching this file are skipped.
-  - By default, Redactyl excludes common noisy artifacts and generated files (configurable): lockfiles (e.g., `yarn.lock`), binaries (`*.wasm`, `*.pyc`), large archives, and generated code (`*.pb.go`, `*.gen.*`). Use `--include/--exclude` and `.redactylignore` to override.
+- By default, Redactyl excludes common noisy artifacts and generated files (configurable): lockfiles (e.g., `yarn.lock`), binaries (`*.wasm`, `*.pyc`), large archives, and generated code (`*.pb.go`, `*.gen.*`). Use `--include/--exclude` and `.redactylignore` to override.
+- For deep scanning, artifact filenames (e.g., `*.zip`, `*.tar`) are filtered by `.redactylignore` and include/exclude globs before the archive/container is opened.
 
-### Remediation
-- Forward-only fixes (safe defaults):
-  - Remove a tracked file and ignore it:
-    ```sh
-    ./bin/redactyl fix path .env --add-ignore
-    ```
-  - Redact secrets in-place using regex and commit (optionally record a summary file):
-    ```sh
-    ./bin/redactyl fix redact --file app.yaml --pattern 'password:\s*\S+' --replace 'password: <redacted>' --summary remediation.json
-    ```
-  - Generate/update `.env.example` from `.env` and ensure `.env` is ignored:
-    ```sh
-    ./bin/redactyl fix dotenv --from .env --to .env.example --add-ignore
-    ```
-- History rewrite (dangerous; creates a backup branch; you likely must force-push):
-  - Remove a single path from all history (with a summary file to audit in CI):
-    ```sh
-    ./bin/redactyl purge path secrets.json --yes --backup-branch my-backup --summary remediation.json
-    ```
-  - Remove by glob pattern(s):
-    ```sh
-    ./bin/redactyl purge pattern --glob '**/*.pem' --glob '**/*.key' --yes
-    ```
-  - Replace content across history using a `git filter-repo` replace-text file:
-    ```sh
-    ./bin/redactyl purge replace --replacements replacements.txt --yes
-    ```
-  - Add `--dry-run` to print the exact commands without executing, and `--summary purge.json` to write a small remediation summary JSON you can parse in CI.
+## Remediation
 
-### Detectors
-- List available IDs:
+**Forward‑only fixes (safe defaults):**
+
+- Remove a tracked file and ignore it:
   ```sh
-  ./bin/redactyl detectors
+  redactyl fix path .env --add-ignore
   ```
-- Enable only specific detectors:
+- Redact secrets in‑place using regex and commit (optionally record a summary file):
   ```sh
-  ./bin/redactyl scan --enable "twilio,github_token"
+  redactyl fix redact --file app.yaml --pattern 'password:\s*\S+' --replace 'password: <redacted>' --summary remediation.json
   ```
-- Disable specific detectors:
+- Generate/update `.env.example` from `.env` and ensure `.env` is ignored:
   ```sh
-  ./bin/redactyl scan --disable "entropy_context"
+  redactyl fix dotenv --from .env --to .env.example --add-ignore
   ```
+
+**History rewrite (dangerous; creates a backup branch; you likely must force‑push):**
+
+- Remove a single path from all history (with a summary file to audit in CI):
+  ```sh
+  redactyl purge path secrets.json --yes --backup-branch my-backup --summary remediation.json
+  ```
+- Remove by glob pattern(s):
+  ```sh
+  redactyl purge pattern --glob '**/*.pem' --glob '**/*.key' --yes
+  ```
+- Replace content across history using a `git filter-repo` replace‑text file:
+  ```sh
+  redactyl purge replace --replacements replacements.txt --yes
+  ```
+- Add `--dry-run` to print the exact commands without executing, and `--summary purge.json` to write a small remediation summary JSON you can parse in CI.
+
+## Detectors
+
+List available IDs:
+
+```sh
+redactyl detectors
+```
+
+Enable only specific detectors:
+
+```sh
+redactyl scan --enable "twilio,github_token"
+```
+
+Disable specific detectors:
+
+```sh
+redactyl scan --disable "entropy_context"
+```
+
 <!-- BEGIN:DETECTORS_CATEGORIES -->
 
 Categories and example IDs (run `redactyl detectors` for the full, up-to-date list):
@@ -248,66 +303,56 @@ Categories and example IDs (run `redactyl detectors` for the full, up-to-date li
   - airtable_pat, azure_sas_token, cloudflare_token, cloudinary_url_creds, databricks_pat, datadog_api_key, datadog_app_key, digitalocean_pat, dockerhub_pat, entropy_context, flyio_access_token, hasura_admin_secret, jwt, linear_api_key, mapbox_token, netlify_build_hook, netlify_token, newrelic_api_key, notion_api_key, okta_api_token, posthog_personal_key, posthog_project_key, prisma_data_proxy_url, private_key_block, pypi_token, render_api_key, shopify_token, snyk_token, supabase_service_role_key, twilio_account_sid, twilio_api_key_secret_like, twilio_api_key_sid, twilio_auth_token, vercel_token
 <!-- END:DETECTORS_CATEGORIES -->
 
-### Output formats
-- Table (default): formatted table with borders and alignment for easy reading
-- Text: plain columnar output with severity, detector, location, and redacted match (use `--text`)
-- JSON: machine-readable; never returns null array
-- SARIF 2.1.0: for code scanning dashboards
+## How detection works
 
-### Public facade (for integrations)
-- Stable API surface for external consumers:
-  - Import `github.com/redactyl/redactyl/pkg/core`
-  - Types: `core.Config`, `core.Finding`
-  - Entry: `core.Scan(cfg)`
+Redactyl combines pattern matching with contextual signals, structured parsing, and lightweight validators to reduce noise:
 
-### Enterprise upload (optional)
-- Upload findings JSON after a scan:
-  ```sh
-  redactyl scan --json --upload https://enterprise.example/api/v1/findings --upload-token $REDACTYL_TOKEN
-  ```
-- Envelope fields: `tool`, `version`, `schema_version`, optional `repo|commit|branch`, and `findings`.
-- Schemas:
-  - Findings: `docs/schemas/findings.schema.json`
-  - Upload envelope: `docs/schemas/upload-envelope.schema.json`
+- **Context:** nearby keywords (e.g., token, secret, api\_key) and file‑type hints
+- **Structured JSON/YAML:** best‑effort key/value extraction with line mapping for `.json`, `.yml`, `.yaml` (catches values even when split across lines or nested). Common keys include `openai_api_key`, `github_token`, `aws_access_key_id`, `aws_secret_access_key`, `slack_webhook`, `discord_webhook`, `stripe_secret`, `google_api_key`, `netlify_token`, `render_api_key`, `jwt`, `firebase apiKey`, `terraform token`
+- **Validators:** provider‑specific prefix/length/alphabet checks and structural decoding (e.g., JWT base64url segments)
 
-See also: `docs/enterprise.md` for integration options.
+You can tune minimum confidence via `--min-confidence`. Strongly validated matches tend to score higher.
 
-### SARIF viewer
-```sh
-./bin/redactyl sarif view redactyl.sarif.json
+### Soft verify (optional)
+
+`--verify safe` applies additional local‑only sanity checks after validators to further reduce noise. Examples: stricter length windows on some tokens and URL shape parsing for webhooks. No network calls or data exfiltration are performed.
+
+## Output & Exit codes
+
+Default table view with colors and counts. JSON and SARIF outputs are stable and documented (`docs/schemas`).
+
+Exit codes:
+
+- `0`: no findings or below threshold (see `--fail-on`)
+- `1`: findings at or above threshold
+- `2`: error while scanning
+
+JSON shape:
+
+- By default, `--json` emits an array of findings.
+- For extended metadata, use `--json --json-extended` to emit an object with both findings and artifact stats:
+
+```json
+{
+  "findings": [ /* ... */ ],
+  "artifact_stats": { "bytes": 0, "entries": 0, "depth": 0, "time": 0 }
+}
 ```
 
-### CLI reference
-- `./bin/redactyl --help`
-- `./bin/redactyl scan --help`
-- `./bin/redactyl fix --help`
-- `./bin/redactyl purge --help`
-- `./bin/redactyl hook --help`
-- `./bin/redactyl action --help`
-- `./bin/redactyl update --help`
-- `./bin/redactyl completion --help`
+SARIF notes:
 
-### Common scan flags
-- **--path, -p**: path to scan (default: .)
-- **--staged**: scan staged changes
-- **--history N**: scan last N commits
-- **--base BRANCH**: scan diff vs base branch
-- **--include / --exclude**: comma-separated globs
-  - Globs use doublestar-style matching with forward slashes, e.g., `**/*.go`, `src/**/test_*.ts`. On Windows, use `/` in patterns.
-- **--max-bytes**: skip files larger than this (default: 1 MiB)
-- **--threads**: worker count (default: GOMAXPROCS)
-- **--enable / --disable**: comma-separated detector IDs
-- **--json / --sarif / --text**: select output format (table is default)
-- **--fail-on**: low | medium | high (default: medium)
-- **--guide**: print suggested remediation commands after a scan
- - **--no-upload-metadata**: when used with `--upload`, omit repo/commit/branch from the envelope (privacy-sensitive CI)
+- SARIF 2.1.0 is written via `--sarif`. Artifact stats are included in `runs[0].properties.artifactStats`.
 
-### Exit codes
-- 0: no findings or below threshold
-- 1: findings at or above threshold (see `--fail-on`)
-- 2: error while scanning
+CLI footer:
 
-### CI usage (GitHub Actions)
+- When deep scanning is enabled and any artifact limits are hit, a brief footer is printed with counters, e.g.:
+
+```
+Artifact limits: bytes=1 entries=0 depth=0 time=0
+```
+
+## CI usage (GitHub Actions)
+
 ```yaml
 name: Redactyl Scan
 on: [push, pull_request]
@@ -321,46 +366,117 @@ jobs:
           go-version: 'stable'
       - run: go build -o bin/redactyl .
       - run: ./bin/redactyl scan --sarif > redactyl.sarif.json
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: redactyl.sarif.json
 ```
 
-### Pre-commit hook
+## Pre-commit hook
+
+Install directly:
+
 ```sh
-./bin/redactyl hook install --pre-commit
+redactyl hook install --pre-commit
 ```
 
-### GitHub Action template
+Or via the pre-commit framework:
+
+```yaml
+- repo: https://github.com/redactyl/redactyl
+  rev: v0.1.0
+  hooks:
+    - id: redactyl-scan
+```
+
+## GitHub Action template
+
 ```sh
-./bin/redactyl action init
+redactyl action init
 ```
 
-### Notes
-- Redactyl respects `.redactylignore` for path filtering.
-- Findings are deduplicated by `(path|detector|match)`.
-- Baseline suppresses previously seen findings; update your baseline after intentionally introduced secrets are handled (for example, false positives).
+## Other CI templates
 
-### Version
+- GitLab CI: see `docs/ci/gitlab-ci.yml`
+- Bitbucket Pipelines: see `docs/ci/bitbucket-pipelines.yml`
+- Azure DevOps: see `docs/ci/azure-pipelines.yml`
+
+Generate into your repo:
+
 ```sh
-./bin/redactyl version
+redactyl ci init --provider gitlab
+redactyl ci init --provider bitbucket
+redactyl ci init --provider azure
 ```
 
-### Updates & Changelog
-- Check for a newer version is displayed on scan (can be disabled via flags/config).
-- Update in-place from GitHub Releases:
+## Privacy & Telemetry
+
+- No code or findings are sent anywhere by default. There is **no telemetry**.
+- Optional upload is explicit via `--upload` and can omit repo metadata with `--no-upload-metadata`.
+
+## AI‑assisted development
+
+Modern AI coding assistants (Copilot, ChatGPT, etc.) sometimes suggest realistic placeholder credentials that can accidentally get committed. Redactyl’s context‑aware detection catches both human mistakes and AI‑generated secrets that pattern‑only scanners miss.
+
+Common AI‑generated risks:
+
+```python
+# AI assistants often suggest code like this:
+openai_client = OpenAI(
+    api_key="sk-1234567890abcdef..."  # Looks fake but matches real format
+)
+stripe.api_key = "sk_test_abc123..."   # Valid test key structure
+aws_session = boto3.Session(
+    aws_access_key_id="AKIA1234567890123456"  # Proper AWS key format
+)
+```
+
+Traditional regex‑only scanners may miss these because they lack context. Redactyl combines pattern detection with contextual analysis to catch AI‑suggested credentials before they reach production.
+
+## Public Go API
+
+Stable API surface for external consumers:
+
+- Import `github.com/redactyl/redactyl/pkg/core`
+- Types: `core.Config`, `core.Finding`
+- Entry point: `core.Scan(cfg)`
+
+## Updates & Changelog
+
+- A check for newer versions is displayed on scan (can be disabled via flags/config).
+- Update in‑place from GitHub Releases:
   ```sh
-  ./bin/redactyl update
+  redactyl update
   ```
- - See `CHANGELOG.md` for notable changes.
+- See `CHANGELOG.md` for notable changes.
 
-### License
-- Apache-2.0. See [`LICENSE`](LICENSE).
+## Versioning & Compatibility
 
-### Contributing
-- See [`CONTRIBUTING.md`](CONTRIBUTING.md).
-- For new detectors, please include tests with your PR (positive and negative cases). See `internal/detectors/README.md` for a short guide and template.
+Semantic Versioning (SemVer):
 
-### Enterprise
-- Commercial offerings (dashboard, org policies, PR gating, SSO, hosted option) are available.
-- Options:
-  - Upload from OSS CLI to your server: `--json --upload` (see schemas in `docs/schemas/`).
-  - Or run scans in Enterprise workers via `github.com/redactyl/redactyl/pkg/core`.
-- Inquiries: open a GitHub Discussion (Q&A) titled "Enterprise inquiry".
+- **CLI:** additive flags and outputs are minor; breaking changes bump major.
+- **JSON output:** backwards‑compatible field additions are minor; removing/renaming fields is major.
+- **SARIF:** remains compliant with v2.1.0; optional fields (e.g., `helpUri`) may be added without breaking consumers.
+- **Rule IDs:** stable; renames or removals are major. New rule IDs may be added in any minor.
+- **Public Go API (`pkg/core`)**: follows SemVer; breaking changes require a major version.
+
+## License
+
+Apache‑2.0. See [`LICENSE`](LICENSE).
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+For new detectors, please include tests with your PR (positive and negative cases). See `internal/detectors/README.md` for a short guide and template.
+
+## Enterprise
+
+Commercial offerings (dashboard, org policies, PR gating, SSO, hosted option) are available.
+
+Options:
+
+- Upload from OSS CLI to your server: `--json --upload` (see schemas in `docs/schemas/`).
+- Or run scans in Enterprise workers via `github.com/redactyl/redactyl/pkg/core`.
+
+Inquiries: open a GitHub Discussion (Q&A) titled **"Enterprise inquiry"**.
+

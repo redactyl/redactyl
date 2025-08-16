@@ -12,6 +12,7 @@ import (
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
 	xxhash "github.com/cespare/xxhash/v2"
+	"github.com/redactyl/redactyl/internal/artifacts"
 	"github.com/redactyl/redactyl/internal/cache"
 	"github.com/redactyl/redactyl/internal/detectors"
 	"github.com/redactyl/redactyl/internal/git"
@@ -38,6 +39,15 @@ type Config struct {
 	DefaultExcludes  bool
 	NoCache          bool
 	Progress         func()
+
+	// Deep artifact scanning (optional)
+	ScanArchives    bool
+	ScanContainers  bool
+	ScanIaC         bool
+	MaxArchiveBytes int64
+	MaxEntries      int
+	MaxDepth        int
+	ScanTimeBudget  time.Duration
 }
 
 var (
@@ -59,9 +69,18 @@ func Scan(cfg Config) ([]types.Finding, error) {
 
 // Result contains findings and basic scan statistics.
 type Result struct {
-	Findings     []types.Finding
-	FilesScanned int
-	Duration     time.Duration
+	Findings      []types.Finding
+	FilesScanned  int
+	Duration      time.Duration
+	ArtifactStats DeepStats
+}
+
+// DeepStats summarizes artifact scanning abort reasons.
+type DeepStats struct {
+	AbortedByBytes   int
+	AbortedByEntries int
+	AbortedByDepth   int
+	AbortedByTime    int
 }
 
 // ScanWithStats runs a scan and returns findings along with timing and counts.
@@ -299,6 +318,51 @@ func ScanWithStats(cfg Config) (Result, error) {
 			close(findingsCh)
 			<-done
 			result.FilesScanned += int(scanned)
+		}
+	}
+
+	// Optional deep artifact scanning (sequential orchestration, internal parallelism TBD)
+	if cfg.ScanArchives || cfg.ScanContainers || cfg.ScanIaC {
+		lim := artifacts.Limits{
+			MaxArchiveBytes: cfg.MaxArchiveBytes,
+			MaxEntries:      cfg.MaxEntries,
+			MaxDepth:        cfg.MaxDepth,
+			TimeBudget:      cfg.ScanTimeBudget,
+			Workers:         cfg.Threads,
+		}
+		emitArtifact := func(p string, b []byte) {
+			if cfg.DryRun {
+				return
+			}
+			fs := detectors.RunAll(p, b)
+			fs = filterByConfidence(fs, cfg.MinConfidence)
+			fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
+			emit(fs)
+			if !cfg.NoCache {
+				updated[p] = fastHash(b)
+			}
+			result.FilesScanned++
+			if cfg.Progress != nil {
+				cfg.Progress()
+			}
+		}
+		// Reuse include/exclude globs to filter which artifact filenames are processed
+		allowArtifact := func(rel string) bool { return allowedByGlobs(rel, cfg) }
+		var artStats artifacts.Stats
+		if cfg.ScanArchives {
+			_ = artifacts.ScanArchivesWithStats(cfg.Root, lim, allowArtifact, emitArtifact, &artStats) //nolint:errcheck
+		}
+		if cfg.ScanContainers {
+			_ = artifacts.ScanContainersWithStats(cfg.Root, lim, allowArtifact, emitArtifact, &artStats) //nolint:errcheck
+		}
+		if cfg.ScanIaC {
+			_ = artifacts.ScanIaCWithFilter(cfg.Root, lim, allowArtifact, emitArtifact) //nolint:errcheck
+		}
+		result.ArtifactStats = DeepStats{
+			AbortedByBytes:   artStats.AbortedByBytes,
+			AbortedByEntries: artStats.AbortedByEntries,
+			AbortedByDepth:   artStats.AbortedByDepth,
+			AbortedByTime:    artStats.AbortedByTime,
 		}
 	}
 

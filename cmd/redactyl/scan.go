@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/redactyl/redactyl/internal/config"
+	"github.com/redactyl/redactyl/internal/detectors"
 	"github.com/redactyl/redactyl/internal/engine"
 	"github.com/redactyl/redactyl/internal/report"
 	"github.com/redactyl/redactyl/internal/types"
@@ -31,6 +33,19 @@ var (
 	flagNoUploadMeta bool
 	flagTable        bool
 	flagText         bool
+	flagNoValidators bool
+	flagNoStructured bool
+	flagVerify       string
+	// deep scanning toggles and limits
+	flagArchives        bool
+	flagContainers      bool
+	flagIaC             bool
+	flagMaxArchiveBytes int64
+	flagMaxEntries      int
+	flagMaxDepth        int
+	flagScanTimeBudget  time.Duration
+	// json shape
+	flagJSONExtended bool
 )
 
 func init() {
@@ -56,6 +71,19 @@ func init() {
 	cmd.Flags().BoolVar(&flagNoUploadMeta, "no-upload-metadata", false, "do not include repo/commit/branch in upload envelope")
 	cmd.Flags().BoolVar(&flagTable, "table", false, "output in table format with borders (now default)")
 	cmd.Flags().BoolVar(&flagText, "text", false, "output in plain text columnar format")
+	cmd.Flags().BoolVar(&flagNoValidators, "no-validators", false, "disable post-detection validator heuristics")
+	cmd.Flags().BoolVar(&flagNoStructured, "no-structured", false, "disable structured JSON/YAML key scanning")
+	cmd.Flags().StringVar(&flagVerify, "verify", "off", "soft verify mode: off|safe|custom")
+	// deep scanning flags
+	cmd.Flags().BoolVar(&flagArchives, "archives", false, "enable deep scanning of archives (zip/tar/gz)")
+	cmd.Flags().BoolVar(&flagContainers, "containers", false, "enable deep scanning of container tarballs (Docker save)")
+	cmd.Flags().BoolVar(&flagIaC, "iac", false, "enable scanning IaC hotspots (tfstate, kubeconfigs)")
+	cmd.Flags().Int64Var(&flagMaxArchiveBytes, "max-archive-bytes", 32<<20, "max decompressed bytes per artifact before aborting")
+	cmd.Flags().IntVar(&flagMaxEntries, "max-entries", 1000, "max entries per archive/container before aborting")
+	cmd.Flags().IntVar(&flagMaxDepth, "max-depth", 2, "max recursion depth for nested archives")
+	cmd.Flags().DurationVar(&flagScanTimeBudget, "scan-time-budget", 10*time.Second, "time budget per artifact (e.g., 10s)")
+	// json shape
+	cmd.Flags().BoolVar(&flagJSONExtended, "json-extended", false, "when used with --json, include artifact stats in the JSON object")
 }
 
 func runScan(cmd *cobra.Command, _ []string) error {
@@ -67,6 +95,18 @@ func runScan(cmd *cobra.Command, _ []string) error {
 	}
 	if c, err := config.LoadLocal(abs); err == nil {
 		lcfg = c
+	}
+
+	// Resolve time budget precedence: CLI > local > global
+	budget := flagScanTimeBudget
+	if lcfg.ScanTimeBudget != nil {
+		if d, err := time.ParseDuration(*lcfg.ScanTimeBudget); err == nil {
+			budget = d
+		}
+	} else if gcfg.ScanTimeBudget != nil {
+		if d, err := time.ParseDuration(*gcfg.ScanTimeBudget); err == nil {
+			budget = d
+		}
 	}
 
 	cfg := engine.Config{
@@ -85,6 +125,42 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		NoColor:          pickBool(flagNoColor, lcfg.NoColor, gcfg.NoColor),
 		NoCache:          pickBool(flagNoCache, nil, nil),
 		DefaultExcludes:  flagDefaultExcludes,
+		ScanArchives:     pickBool(flagArchives, lcfg.Archives, gcfg.Archives),
+		ScanContainers:   pickBool(flagContainers, lcfg.Containers, gcfg.Containers),
+		ScanIaC:          pickBool(flagIaC, lcfg.IaC, gcfg.IaC),
+		MaxArchiveBytes:  pickInt64(flagMaxArchiveBytes, lcfg.MaxArchiveBytes, gcfg.MaxArchiveBytes),
+		MaxEntries:       pickInt(flagMaxEntries, lcfg.MaxEntries, gcfg.MaxEntries),
+		MaxDepth:         pickInt(flagMaxDepth, lcfg.MaxDepth, gcfg.MaxDepth),
+		ScanTimeBudget:   budget,
+	}
+
+	// toggles: CLI overrides config when present
+	nv := pickBool(flagNoValidators, lcfg.NoValidators, gcfg.NoValidators)
+	ns := pickBool(flagNoStructured, lcfg.NoStructured, gcfg.NoStructured)
+	detectors.EnableValidators = !nv
+	detectors.EnableStructured = !ns
+	// verify: CLI > local > global
+	if v := pickString(flagVerify, lcfg.VerifyMode, gcfg.VerifyMode); v != "" {
+		detectors.VerifyMode = v
+	}
+	// per-detector disable lists (optional, comma-separated)
+	if lcfg.DisableValidators != nil || gcfg.DisableValidators != nil {
+		ids := pickString("", lcfg.DisableValidators, gcfg.DisableValidators)
+		for _, id := range strings.Split(ids, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				detectors.DisabledValidatorsIDs[id] = true
+			}
+		}
+	}
+	if lcfg.DisableStructured != nil || gcfg.DisableStructured != nil {
+		ids := pickString("", lcfg.DisableStructured, gcfg.DisableStructured)
+		for _, id := range strings.Split(ids, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				detectors.DisabledStructuredIDs[id] = true
+			}
+		}
 	}
 
 	// Friendly banner before scanning
@@ -132,14 +208,35 @@ func runScan(cmd *cobra.Command, _ []string) error {
 
 	switch {
 	case flagSARIF:
-		if err := report.WriteSARIF(os.Stdout, newFindings); err != nil {
+		stats := map[string]int{
+			"bytes":   res.ArtifactStats.AbortedByBytes,
+			"entries": res.ArtifactStats.AbortedByEntries,
+			"depth":   res.ArtifactStats.AbortedByDepth,
+			"time":    res.ArtifactStats.AbortedByTime,
+		}
+		if err := report.WriteSARIFWithStats(os.Stdout, newFindings, stats); err != nil {
 			return fmt.Errorf("sarif error: %w", err)
 		}
 	case flagJSON:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		if err := enc.Encode(newFindings); err != nil {
-			return err
+		if flagJSONExtended {
+			payload := map[string]any{
+				"findings": newFindings,
+				"artifact_stats": map[string]int{
+					"bytes":   res.ArtifactStats.AbortedByBytes,
+					"entries": res.ArtifactStats.AbortedByEntries,
+					"depth":   res.ArtifactStats.AbortedByDepth,
+					"time":    res.ArtifactStats.AbortedByTime,
+				},
+			}
+			if err := enc.Encode(payload); err != nil {
+				return err
+			}
+		} else {
+			if err := enc.Encode(newFindings); err != nil {
+				return err
+			}
 		}
 	case flagText:
 		report.PrintText(os.Stdout, newFindings, report.PrintOptions{NoColor: flagNoColor, Duration: res.Duration, FilesScanned: res.FilesScanned, TotalFiles: total, TotalFindings: len(res.Findings)})
@@ -156,6 +253,9 @@ func runScan(cmd *cobra.Command, _ []string) error {
 				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
 		}
+		if res.ArtifactStats.AbortedByBytes+res.ArtifactStats.AbortedByEntries+res.ArtifactStats.AbortedByDepth+res.ArtifactStats.AbortedByTime > 0 {
+			_, _ = fmt.Fprintf(os.Stderr, "\nArtifact limits: bytes=%d entries=%d depth=%d time=%d\n", res.ArtifactStats.AbortedByBytes, res.ArtifactStats.AbortedByEntries, res.ArtifactStats.AbortedByDepth, res.ArtifactStats.AbortedByTime)
+		}
 	case flagTable:
 		report.PrintTable(os.Stdout, newFindings, report.PrintOptions{NoColor: flagNoColor, Duration: res.Duration, FilesScanned: res.FilesScanned, TotalFiles: total, TotalFindings: len(res.Findings)})
 		if flagGuide && len(newFindings) > 0 {
@@ -170,6 +270,9 @@ func runScan(cmd *cobra.Command, _ []string) error {
 				// otherwise suggest redact for the match span and path-based removal if binary/secret files
 				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
+		}
+		if res.ArtifactStats.AbortedByBytes+res.ArtifactStats.AbortedByEntries+res.ArtifactStats.AbortedByDepth+res.ArtifactStats.AbortedByTime > 0 {
+			_, _ = fmt.Fprintf(os.Stderr, "\nArtifact limits: bytes=%d entries=%d depth=%d time=%d\n", res.ArtifactStats.AbortedByBytes, res.ArtifactStats.AbortedByEntries, res.ArtifactStats.AbortedByDepth, res.ArtifactStats.AbortedByTime)
 		}
 	default:
 		// Default to table format now
@@ -186,6 +289,9 @@ func runScan(cmd *cobra.Command, _ []string) error {
 				// otherwise suggest redact for the match span and path-based removal if binary/secret files
 				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
+		}
+		if res.ArtifactStats.AbortedByBytes+res.ArtifactStats.AbortedByEntries+res.ArtifactStats.AbortedByDepth+res.ArtifactStats.AbortedByTime > 0 {
+			_, _ = fmt.Fprintf(os.Stderr, "\nArtifact limits: bytes=%d entries=%d depth=%d time=%d\n", res.ArtifactStats.AbortedByBytes, res.ArtifactStats.AbortedByEntries, res.ArtifactStats.AbortedByDepth, res.ArtifactStats.AbortedByTime)
 		}
 	}
 

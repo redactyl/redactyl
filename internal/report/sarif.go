@@ -15,8 +15,9 @@ type sarif struct {
 }
 
 type sarifRun struct {
-	Tool    sarifTool     `json:"tool"`
-	Results []sarifResult `json:"results"`
+	Tool       sarifTool              `json:"tool"`
+	Results    []sarifResult          `json:"results"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
 }
 
 type sarifTool struct {
@@ -67,6 +68,7 @@ type sarifRule struct {
 	ID           string        `json:"id"`
 	ShortDesc    *sarifMessage `json:"shortDescription,omitempty"`
 	Help         *sarifMessage `json:"help,omitempty"`
+	HelpURI      string        `json:"helpUri,omitempty"`
 	DefaultLevel string        `json:"defaultConfiguration,omitempty"`
 }
 
@@ -93,6 +95,7 @@ func WriteSARIF(w io.Writer, findings []types.Finding) error {
 				ID:        f.Detector,
 				ShortDesc: &sarifMessage{Text: f.Detector + " detection"},
 				Help:      &sarifMessage{Text: "Secret-like token detected. Review and rotate if valid."},
+				HelpURI:   "https://github.com/redactyl/redactyl/blob/main/docs/rules/README.md#" + f.Detector,
 			})
 		}
 	}
@@ -110,6 +113,36 @@ func WriteSARIF(w io.Writer, findings []types.Finding) error {
 				},
 			}},
 		})
+	}
+	doc := sarif{Version: "2.1.0", Runs: []sarifRun{run}}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(doc)
+}
+
+// WriteSARIFWithStats writes findings as SARIF and includes artifactStats in the run.properties bag.
+func WriteSARIFWithStats(w io.Writer, findings []types.Finding, artifactStats map[string]int) error {
+	run := sarifRun{Tool: sarifTool{Driver: sarifDriver{Name: "redactyl", Version: time.Now().Format("2006.01.02")}}, Properties: map[string]interface{}{}}
+	// Build rules index
+	ruleIndex := map[string]int{}
+	for _, f := range findings {
+		if _, ok := ruleIndex[f.Detector]; !ok {
+			ruleIndex[f.Detector] = len(run.Tool.Driver.Rules)
+			run.Tool.Driver.Rules = append(run.Tool.Driver.Rules, sarifRule{ID: f.Detector, ShortDesc: &sarifMessage{Text: f.Detector + " detection"}})
+		}
+	}
+	for _, f := range findings {
+		idx := ruleIndex[f.Detector]
+		run.Results = append(run.Results, sarifResult{
+			RuleID:    f.Detector,
+			RuleIndex: idx,
+			Level:     sevToLevel(f.Severity),
+			Message:   sarifMessage{Text: f.Detector + " detected"},
+			Locations: []sarifLoc{{PhysicalLocation: sarifPhys{ArtifactLocation: sarifArt{URI: f.Path}, Region: sarifRegion{StartLine: f.Line, Snippet: &sarifSnippet{Text: f.Match}}}}},
+		})
+	}
+	if artifactStats != nil {
+		run.Properties = map[string]interface{}{"artifactStats": artifactStats}
 	}
 	doc := sarif{Version: "2.1.0", Runs: []sarifRun{run}}
 	enc := json.NewEncoder(w)
