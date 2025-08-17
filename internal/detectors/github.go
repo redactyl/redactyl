@@ -9,8 +9,9 @@ import (
 	"github.com/redactyl/redactyl/internal/validate"
 )
 
-// PAT formats evolve; cover ghp_, gho_, ghu_, ghs_, ghr_
-var reGHP = regexp.MustCompile(`g(hp|ho|hu|hs|hr)_[A-Za-z0-9]{36}`)
+// PAT formats evolve; cover ghp_, gho_, ghu_, ghs_, ghr_.
+// Add word boundaries to reduce false positives embedded in longer tokens.
+var reGHP = regexp.MustCompile(`\bg(hp|ho|hu|hs|hr)_[A-Za-z0-9]{36}\b`)
 
 func GitHubToken(path string, data []byte) []types.Finding {
 	var out []types.Finding

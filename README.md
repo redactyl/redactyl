@@ -34,6 +34,7 @@ Find secrets in your repo with **low noise**. Redactyl scans your working tree, 
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
 - [Deep scanning](#deep-scanning)
+  - See the Deep scanning guide: [`docs/deep-scanning.md`](docs/deep-scanning.md)
 - [Detectors](#detectors)
 - [How detection works](#how-detection-works)
 - [Baseline](#baseline)
@@ -179,6 +180,7 @@ max_archive_bytes: 33554432 # 32 MiB
 max_entries: 1000
 max_depth: 2
 scan_time_budget: 10s
+global_artifact_budget: 10s
 ```
 
 ## Deep scanning
@@ -189,6 +191,7 @@ scan_time_budget: 10s
   - `image.tar::<layerID>/etc/app.yaml`
   - Nested: `outer.zip::inner.tgz::path/in/file.txt`
 - Guardrails abort per‑artifact scanning early on size, entry count, depth, or time budgets.
+- A separate optional global budget can cap total deep-scan time across all artifacts: `--global-artifact-budget` or `global_artifact_budget` in config.
 - Durations use Go‑style syntax (e.g., `5s`, `2m`). Sizes are bytes.
 - Artifact filenames are filtered by `.redactylignore` and include/exclude globs before opening.
 
@@ -196,7 +199,7 @@ Examples:
 
 ```sh
 redactyl scan --archives
-redactyl scan --containers --max-archive-bytes 67108864 --scan-time-budget 5s
+redactyl scan --containers --max-archive-bytes 67108864 --scan-time-budget 5s --global-artifact-budget 8s
 ```
 
 ## Baseline
@@ -321,6 +324,12 @@ You can tune minimum confidence via `--min-confidence`. Strongly validated match
 
 Default table view with colors and counts. JSON and SARIF outputs are stable and documented (`docs/schemas`).
 
+Schema stability:
+
+- Default JSON (`--json`) remains a stable array across v1.
+- Extended JSON (`--json --json-extended`) is additive and versioned via `schema_version` (currently "1").
+- SARIF remains 2.1.0; optional `run.properties.artifactStats` is present when deep scanning is enabled.
+
 Exit codes:
 
 - `0`: no findings or below threshold (see `--fail-on`)
@@ -330,10 +339,11 @@ Exit codes:
 JSON shape:
 
 - By default, `--json` emits an array of findings.
-- For extended metadata, use `--json --json-extended` to emit an object with both findings and artifact stats:
+- For extended metadata, use `--json --json-extended` to emit an object with a schema version, findings, and artifact stats:
 
 ```json
 {
+  "schema_version": "1",
   "findings": [ /* ... */ ],
   "artifact_stats": { "bytes": 0, "entries": 0, "depth": 0, "time": 0 }
 }
@@ -365,7 +375,7 @@ jobs:
         with:
           go-version: 'stable'
       - run: go build -o bin/redactyl .
-      - run: ./bin/redactyl scan --sarif > redactyl.sarif.json
+      - run: ./bin/redactyl scan --sarif --archives --global-artifact-budget 15s > redactyl.sarif.json
       - uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: redactyl.sarif.json

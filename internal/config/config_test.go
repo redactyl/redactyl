@@ -17,7 +17,7 @@ func writeTemp(t *testing.T, dir, name, body string) string {
 
 func TestLoadFile_Basic(t *testing.T) {
 	dir := t.TempDir()
-	p := writeTemp(t, dir, "redactyl.yaml", "threads: 4\nmax_bytes: 123\narchives: true\nscan_time_budget: 5s\n")
+	p := writeTemp(t, dir, "redactyl.yaml", "threads: 4\nmax_bytes: 123\narchives: true\nscan_time_budget: 5s\nglobal_artifact_budget: 7s\n")
 	cfg, err := LoadFile(p)
 	if err != nil {
 		t.Fatalf("LoadFile: %v", err)
@@ -33,6 +33,25 @@ func TestLoadFile_Basic(t *testing.T) {
 	}
 	if cfg.ScanTimeBudget == nil || *cfg.ScanTimeBudget != "5s" {
 		t.Fatalf("expected scan_time_budget=5s, got %#v", cfg.ScanTimeBudget)
+	}
+	if cfg.GlobalArtifactBudget == nil || *cfg.GlobalArtifactBudget != "7s" {
+		t.Fatalf("expected global_artifact_budget=7s, got %#v", cfg.GlobalArtifactBudget)
+	}
+}
+
+func TestGlobalArtifactBudget_Precedence(t *testing.T) {
+	// Ensure CLI > local > global precedence for the new field is respected by parsing logic in scan
+	// Here we only verify parsing at the config layer and leave CLI precedence to e2e.
+	dir := t.TempDir()
+	// Global-like file content
+	g := "threads: 1\nglobal_artifact_budget: 1s\n"
+	p := writeTemp(t, dir, "redactyl.yaml", g)
+	cfg, err := LoadFile(p)
+	if err != nil {
+		t.Fatalf("LoadFile: %v", err)
+	}
+	if cfg.GlobalArtifactBudget == nil || *cfg.GlobalArtifactBudget != "1s" {
+		t.Fatalf("expected global_artifact_budget=1s, got %#v", cfg.GlobalArtifactBudget)
 	}
 }
 

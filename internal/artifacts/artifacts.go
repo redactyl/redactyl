@@ -34,6 +34,8 @@ type Limits struct {
 	MaxDepth        int
 	TimeBudget      time.Duration
 	Workers         int
+	// GlobalDeadline stops scanning across all artifacts when exceeded.
+	GlobalDeadline time.Time
 }
 
 // Stats collects counters for artifacts aborted due to guardrails.
@@ -709,6 +711,9 @@ func limitsExceeded(l Limits, decompressed int64, entries int, depth int, deadli
 	if !deadline.IsZero() && time.Now().After(deadline) {
 		return true
 	}
+	if !l.GlobalDeadline.IsZero() && time.Now().After(l.GlobalDeadline) {
+		return true
+	}
 	return false
 }
 
@@ -724,6 +729,9 @@ func limitsExceededReason(l Limits, decompressed int64, entries int, depth int, 
 		return "depth"
 	}
 	if !deadline.IsZero() && time.Now().After(deadline) {
+		return "time"
+	}
+	if !l.GlobalDeadline.IsZero() && time.Now().After(l.GlobalDeadline) {
 		return "time"
 	}
 	return ""
