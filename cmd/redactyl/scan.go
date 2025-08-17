@@ -37,13 +37,14 @@ var (
 	flagNoStructured bool
 	flagVerify       string
 	// deep scanning toggles and limits
-	flagArchives        bool
-	flagContainers      bool
-	flagIaC             bool
-	flagMaxArchiveBytes int64
-	flagMaxEntries      int
-	flagMaxDepth        int
-	flagScanTimeBudget  time.Duration
+	flagArchives             bool
+	flagContainers           bool
+	flagIaC                  bool
+	flagMaxArchiveBytes      int64
+	flagMaxEntries           int
+	flagMaxDepth             int
+	flagScanTimeBudget       time.Duration
+	flagGlobalArtifactBudget time.Duration
 	// json shape
 	flagJSONExtended bool
 )
@@ -82,8 +83,37 @@ func init() {
 	cmd.Flags().IntVar(&flagMaxEntries, "max-entries", 1000, "max entries per archive/container before aborting")
 	cmd.Flags().IntVar(&flagMaxDepth, "max-depth", 2, "max recursion depth for nested archives")
 	cmd.Flags().DurationVar(&flagScanTimeBudget, "scan-time-budget", 10*time.Second, "time budget per artifact (e.g., 10s)")
+	cmd.Flags().DurationVar(&flagGlobalArtifactBudget, "global-artifact-budget", 0, "optional global time budget across all artifacts (e.g., 10s)")
 	// json shape
-	cmd.Flags().BoolVar(&flagJSONExtended, "json-extended", false, "when used with --json, include artifact stats in the JSON object")
+	cmd.Flags().BoolVar(&flagJSONExtended, "json-extended", false, "when used with --json, include artifact stats in the JSON object; adds a schema_version field")
+}
+
+// resolveBudgets returns the effective per-artifact time budget and global artifact budget
+// by applying precedence rules: CLI > local > global.
+func resolveBudgets(flagBudget time.Duration, lcfg, gcfg config.FileConfig, flagGlobalBudget time.Duration) (time.Duration, time.Duration) {
+	// per-artifact
+	budget := flagBudget
+	if lcfg.ScanTimeBudget != nil {
+		if d, err := time.ParseDuration(*lcfg.ScanTimeBudget); err == nil {
+			budget = d
+		}
+	} else if gcfg.ScanTimeBudget != nil {
+		if d, err := time.ParseDuration(*gcfg.ScanTimeBudget); err == nil {
+			budget = d
+		}
+	}
+	// global
+	globalBudget := flagGlobalBudget
+	if lcfg.GlobalArtifactBudget != nil {
+		if d, err := time.ParseDuration(*lcfg.GlobalArtifactBudget); err == nil {
+			globalBudget = d
+		}
+	} else if gcfg.GlobalArtifactBudget != nil {
+		if d, err := time.ParseDuration(*gcfg.GlobalArtifactBudget); err == nil {
+			globalBudget = d
+		}
+	}
+	return budget, globalBudget
 }
 
 func runScan(cmd *cobra.Command, _ []string) error {
@@ -97,41 +127,33 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		lcfg = c
 	}
 
-	// Resolve time budget precedence: CLI > local > global
-	budget := flagScanTimeBudget
-	if lcfg.ScanTimeBudget != nil {
-		if d, err := time.ParseDuration(*lcfg.ScanTimeBudget); err == nil {
-			budget = d
-		}
-	} else if gcfg.ScanTimeBudget != nil {
-		if d, err := time.ParseDuration(*gcfg.ScanTimeBudget); err == nil {
-			budget = d
-		}
-	}
+	// Resolve budgets with precedence: CLI > local > global
+	budget, globalBudget := resolveBudgets(flagScanTimeBudget, lcfg, gcfg, flagGlobalArtifactBudget)
 
 	cfg := engine.Config{
-		Root:             abs,
-		IncludeGlobs:     pickString(flagInclude, lcfg.Include, gcfg.Include),
-		ExcludeGlobs:     pickString(flagExclude, lcfg.Exclude, gcfg.Exclude),
-		MaxBytes:         pickInt64(flagMaxBytes, lcfg.MaxBytes, gcfg.MaxBytes),
-		ScanStaged:       flagStaged,
-		HistoryCommits:   flagHistory,
-		BaseBranch:       flagBase,
-		Threads:          pickInt(flagThreads, lcfg.Threads, gcfg.Threads),
-		EnableDetectors:  pickString(flagEnable, lcfg.Enable, gcfg.Enable),
-		DisableDetectors: pickString(flagDisable, lcfg.Disable, gcfg.Disable),
-		MinConfidence:    pickFloat(flagMinConfidence, lcfg.MinConfidence, gcfg.MinConfidence),
-		DryRun:           pickBool(flagDryRun, nil, nil),
-		NoColor:          pickBool(flagNoColor, lcfg.NoColor, gcfg.NoColor),
-		NoCache:          pickBool(flagNoCache, nil, nil),
-		DefaultExcludes:  flagDefaultExcludes,
-		ScanArchives:     pickBool(flagArchives, lcfg.Archives, gcfg.Archives),
-		ScanContainers:   pickBool(flagContainers, lcfg.Containers, gcfg.Containers),
-		ScanIaC:          pickBool(flagIaC, lcfg.IaC, gcfg.IaC),
-		MaxArchiveBytes:  pickInt64(flagMaxArchiveBytes, lcfg.MaxArchiveBytes, gcfg.MaxArchiveBytes),
-		MaxEntries:       pickInt(flagMaxEntries, lcfg.MaxEntries, gcfg.MaxEntries),
-		MaxDepth:         pickInt(flagMaxDepth, lcfg.MaxDepth, gcfg.MaxDepth),
-		ScanTimeBudget:   budget,
+		Root:                 abs,
+		IncludeGlobs:         pickString(flagInclude, lcfg.Include, gcfg.Include),
+		ExcludeGlobs:         pickString(flagExclude, lcfg.Exclude, gcfg.Exclude),
+		MaxBytes:             pickInt64(flagMaxBytes, lcfg.MaxBytes, gcfg.MaxBytes),
+		ScanStaged:           flagStaged,
+		HistoryCommits:       flagHistory,
+		BaseBranch:           flagBase,
+		Threads:              pickInt(flagThreads, lcfg.Threads, gcfg.Threads),
+		EnableDetectors:      pickString(flagEnable, lcfg.Enable, gcfg.Enable),
+		DisableDetectors:     pickString(flagDisable, lcfg.Disable, gcfg.Disable),
+		MinConfidence:        pickFloat(flagMinConfidence, lcfg.MinConfidence, gcfg.MinConfidence),
+		DryRun:               pickBool(flagDryRun, nil, nil),
+		NoColor:              pickBool(flagNoColor, lcfg.NoColor, gcfg.NoColor),
+		NoCache:              pickBool(flagNoCache, nil, nil),
+		DefaultExcludes:      flagDefaultExcludes,
+		ScanArchives:         pickBool(flagArchives, lcfg.Archives, gcfg.Archives),
+		ScanContainers:       pickBool(flagContainers, lcfg.Containers, gcfg.Containers),
+		ScanIaC:              pickBool(flagIaC, lcfg.IaC, gcfg.IaC),
+		MaxArchiveBytes:      pickInt64(flagMaxArchiveBytes, lcfg.MaxArchiveBytes, gcfg.MaxArchiveBytes),
+		MaxEntries:           pickInt(flagMaxEntries, lcfg.MaxEntries, gcfg.MaxEntries),
+		MaxDepth:             pickInt(flagMaxDepth, lcfg.MaxDepth, gcfg.MaxDepth),
+		ScanTimeBudget:       budget,
+		GlobalArtifactBudget: globalBudget,
 	}
 
 	// toggles: CLI overrides config when present
@@ -222,7 +244,8 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		enc.SetIndent("", "  ")
 		if flagJSONExtended {
 			payload := map[string]any{
-				"findings": newFindings,
+				"schema_version": "1",
+				"findings":       newFindings,
 				"artifact_stats": map[string]int{
 					"bytes":   res.ArtifactStats.AbortedByBytes,
 					"entries": res.ArtifactStats.AbortedByEntries,

@@ -41,13 +41,14 @@ type Config struct {
 	Progress         func()
 
 	// Deep artifact scanning (optional)
-	ScanArchives    bool
-	ScanContainers  bool
-	ScanIaC         bool
-	MaxArchiveBytes int64
-	MaxEntries      int
-	MaxDepth        int
-	ScanTimeBudget  time.Duration
+	ScanArchives         bool
+	ScanContainers       bool
+	ScanIaC              bool
+	MaxArchiveBytes      int64
+	MaxEntries           int
+	MaxDepth             int
+	ScanTimeBudget       time.Duration
+	GlobalArtifactBudget time.Duration
 }
 
 var (
@@ -330,9 +331,9 @@ func ScanWithStats(cfg Config) (Result, error) {
 			TimeBudget:      cfg.ScanTimeBudget,
 			Workers:         cfg.Threads,
 		}
-		// Establish a global deadline across all artifacts if a time budget is provided
-		if cfg.ScanTimeBudget > 0 {
-			lim.GlobalDeadline = time.Now().Add(cfg.ScanTimeBudget)
+		// Establish a global deadline across all artifacts if a global time budget is provided
+		if cfg.GlobalArtifactBudget > 0 {
+			lim.GlobalDeadline = time.Now().Add(cfg.GlobalArtifactBudget)
 		}
 		emitArtifact := func(p string, b []byte) {
 			if cfg.DryRun {

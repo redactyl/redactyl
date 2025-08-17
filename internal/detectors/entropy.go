@@ -9,8 +9,11 @@ import (
 	"github.com/redactyl/redactyl/internal/types"
 )
 
-var reMaybeSecret = regexp.MustCompile(`[A-Za-z0-9+/=_-]{20,200}`) // broad token-ish with upper bound
-var reContext = regexp.MustCompile(`(?i)(secret|token|password|api[_-]?key|authorization|bearer|aws)`)
+// broad token-ish with upper bound; raise min length slightly to reduce noise
+var reMaybeSecret = regexp.MustCompile(`[A-Za-z0-9+/=_-]{24,200}`)
+
+// Reduce accidental triggers on auth headers by excluding common bearer scaffolding
+var reContext = regexp.MustCompile(`(?i)(secret|token|password|api[_-]?key|aws)`)
 
 func EntropyNearbySecrets(path string, data []byte) []types.Finding {
 	var out []types.Finding
@@ -23,7 +26,7 @@ func EntropyNearbySecrets(path string, data []byte) []types.Finding {
 			continue
 		}
 		for _, m := range reMaybeSecret.FindAllString(txt, -1) {
-			if entropy(m) >= 4.0 && len(m) <= 200 {
+			if entropy(m) >= 4.2 && len(m) <= 200 {
 				out = append(out, types.Finding{
 					Path: path, Line: line, Match: m,
 					Detector: "entropy_context", Severity: types.SevMed, Confidence: 0.6,
