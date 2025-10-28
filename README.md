@@ -625,7 +625,7 @@ Apache‑2.0. See [`LICENSE`](LICENSE).
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-For new detectors, please include tests with your PR (positive and negative cases). See `internal/detectors/README.md` for a short guide and template.
+Redactyl uses Gitleaks for all secret detection. To add new detection rules, contribute to the [Gitleaks project](https://github.com/gitleaks/gitleaks) or create custom rules in `.gitleaks.toml`.
 
 ## Enterprise
 

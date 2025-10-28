@@ -16,7 +16,6 @@ import (
 	"github.com/redactyl/redactyl/internal/artifacts"
 	"github.com/redactyl/redactyl/internal/cache"
 	"github.com/redactyl/redactyl/internal/config"
-	"github.com/redactyl/redactyl/internal/detectors"
 	"github.com/redactyl/redactyl/internal/git"
 	"github.com/redactyl/redactyl/internal/ignore"
 	"github.com/redactyl/redactyl/internal/scanner"
@@ -65,8 +64,29 @@ var (
 	DisableDetectors string
 )
 
-// DetectorIDs returns the list of available detector IDs.
-func DetectorIDs() []string { return detectors.IDs() }
+// DetectorIDs returns the list of available Gitleaks detector IDs.
+// This is a representative list of common Gitleaks rules for UI purposes.
+// The actual detection is performed by Gitleaks with its full rule set.
+func DetectorIDs() []string {
+	return []string{
+		"github-pat", "github-fine-grained-pat", "github-oauth", "github-app-token",
+		"aws-access-key", "aws-secret-key", "aws-mws-key",
+		"stripe-access-token", "stripe-secret-key",
+		"slack-webhook-url", "slack-bot-token", "slack-app-token",
+		"google-api-key", "google-oauth", "gcp-service-account",
+		"gitlab-pat", "gitlab-pipeline-token", "gitlab-runner-token",
+		"sendgrid-api-key",
+		"openai-api-key",
+		"anthropic-api-key",
+		"npm-access-token",
+		"pypi-token",
+		"docker-config-auth",
+		"jwt",
+		"private-key",
+		"generic-api-key",
+		// Note: This is a subset for display. Gitleaks has 200+ rules.
+	}
+}
 
 // Scan runs a scan and returns only findings (without stats).
 func Scan(cfg Config) ([]types.Finding, error) {
