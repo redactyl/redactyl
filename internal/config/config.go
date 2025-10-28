@@ -34,6 +34,28 @@ type FileConfig struct {
 	MaxDepth             *int    `yaml:"max_depth"`
 	ScanTimeBudget       *string `yaml:"scan_time_budget"`
 	GlobalArtifactBudget *string `yaml:"global_artifact_budget"`
+
+	// Gitleaks integration config
+	Gitleaks *GitleaksConfig `yaml:"gitleaks"`
+}
+
+// GitleaksConfig holds configuration for Gitleaks integration.
+type GitleaksConfig struct {
+	// ConfigPath is the path to a .gitleaks.toml configuration file.
+	// If empty, Gitleaks will use its default rules.
+	ConfigPath *string `yaml:"config"`
+
+	// BinaryPath is an explicit path to the gitleaks binary.
+	// If empty, the binary will be searched in $PATH and ~/.redactyl/bin.
+	BinaryPath *string `yaml:"binary"`
+
+	// AutoDownload enables automatic downloading of the gitleaks binary
+	// if it's not found. Defaults to true.
+	AutoDownload *bool `yaml:"auto_download"`
+
+	// Version pins a specific version of gitleaks to use/download.
+	// If empty, the latest available version will be used.
+	Version *string `yaml:"version"`
 }
 
 // LoadFile reads a YAML config file from the provided path.
@@ -80,4 +102,56 @@ func LoadGlobal() (FileConfig, error) {
 		return LoadFile(p)
 	}
 	return cfg, errors.New("no global config")
+}
+
+// GetGitleaksConfig returns the Gitleaks configuration with sensible defaults.
+func (fc FileConfig) GetGitleaksConfig() GitleaksConfig {
+	if fc.Gitleaks == nil {
+		// Return default config
+		autoDownload := true
+		return GitleaksConfig{
+			AutoDownload: &autoDownload,
+		}
+	}
+
+	// Apply defaults for nil fields
+	cfg := *fc.Gitleaks
+	if cfg.AutoDownload == nil {
+		autoDownload := true
+		cfg.AutoDownload = &autoDownload
+	}
+
+	return cfg
+}
+
+// GetGitleaksBinaryPath returns the custom binary path or empty string.
+func (gc GitleaksConfig) GetBinaryPath() string {
+	if gc.BinaryPath == nil {
+		return ""
+	}
+	return *gc.BinaryPath
+}
+
+// GetGitleaksConfigPath returns the config file path or empty string.
+func (gc GitleaksConfig) GetConfigPath() string {
+	if gc.ConfigPath == nil {
+		return ""
+	}
+	return *gc.ConfigPath
+}
+
+// IsAutoDownloadEnabled returns true if auto-download is enabled (default: true).
+func (gc GitleaksConfig) IsAutoDownloadEnabled() bool {
+	if gc.AutoDownload == nil {
+		return true // Default to true
+	}
+	return *gc.AutoDownload
+}
+
+// GetVersion returns the pinned version or empty string for latest.
+func (gc GitleaksConfig) GetVersion() string {
+	if gc.Version == nil {
+		return ""
+	}
+	return *gc.Version
 }

@@ -1,0 +1,262 @@
+package gitleaks
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/redactyl/redactyl/internal/config"
+	"github.com/redactyl/redactyl/internal/scanner"
+	"github.com/redactyl/redactyl/internal/types"
+)
+
+// Scanner implements the scanner.Scanner interface using Gitleaks.
+type Scanner struct {
+	binaryPath string
+	configPath string
+	version    string
+}
+
+// NewScanner creates a new Gitleaks scanner from configuration.
+func NewScanner(cfg config.GitleaksConfig) (*Scanner, error) {
+	bm := NewBinaryManager(cfg.GetBinaryPath())
+
+	// Try to find existing binary
+	binaryPath, err := bm.Find()
+	if err != nil {
+		// If auto-download is enabled, attempt download
+		if cfg.IsAutoDownloadEnabled() {
+			version := cfg.GetVersion()
+			if version == "" {
+				version = "latest"
+			}
+			if dlErr := bm.Download(version); dlErr != nil {
+				return nil, fmt.Errorf("gitleaks binary not found and auto-download failed: %w", dlErr)
+			}
+			// Try finding again after download
+			binaryPath, err = bm.Find()
+			if err != nil {
+				return nil, fmt.Errorf("gitleaks binary not found after download: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("gitleaks binary not found (auto-download disabled): %w", err)
+		}
+	}
+
+	// Get version
+	version, err := bm.Version(binaryPath)
+	if err != nil {
+		// Non-fatal, just log
+		version = "unknown"
+	}
+
+	return &Scanner{
+		binaryPath: binaryPath,
+		configPath: cfg.GetConfigPath(),
+		version:    version,
+	}, nil
+}
+
+// Scan implements scanner.Scanner.
+func (s *Scanner) Scan(path string, data []byte) ([]types.Finding, error) {
+	return s.ScanWithContext(scanner.ScanContext{
+		VirtualPath: path,
+		RealPath:    path,
+	}, data)
+}
+
+// ScanWithContext implements scanner.Scanner with artifact context.
+func (s *Scanner) ScanWithContext(ctx scanner.ScanContext, data []byte) ([]types.Finding, error) {
+	// Write data to temp file for Gitleaks to scan
+	tmpfile, err := os.CreateTemp("", "redactyl-scan-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	defer tmpfile.Close()
+
+	if _, err := tmpfile.Write(data); err != nil {
+		return nil, fmt.Errorf("failed to write temp file: %w", err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Build gitleaks command
+	args := []string{
+		"detect",
+		"--no-git",          // Don't use git, just scan files
+		"--report-format", "json",
+		"--source", tmpfile.Name(),
+		"--exit-code", "0",  // Don't exit with error on findings
+	}
+
+	if s.configPath != "" {
+		args = append(args, "--config", s.configPath)
+	}
+
+	// Execute gitleaks
+	cmd := exec.Command(s.binaryPath, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		// Check if this is just a findings error (exit code 1)
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// Gitleaks returns exit code 1 when findings exist
+			// This is expected, so we continue processing
+			if exitErr.ExitCode() != 1 {
+				return nil, fmt.Errorf("gitleaks failed (exit %d): %s", exitErr.ExitCode(), stderr.String())
+			}
+		} else {
+			return nil, fmt.Errorf("gitleaks execution failed: %w: %s", err, stderr.String())
+		}
+	}
+
+	// Parse JSON output
+	var gitleaksFindings []GitleaksFinding
+	if stdout.Len() > 0 {
+		if err := json.Unmarshal(stdout.Bytes(), &gitleaksFindings); err != nil {
+			return nil, fmt.Errorf("failed to parse gitleaks JSON output: %w", err)
+		}
+	}
+
+	// Convert to Redactyl findings
+	return s.convertFindings(gitleaksFindings, ctx), nil
+}
+
+// Version implements scanner.Scanner.
+func (s *Scanner) Version() (string, error) {
+	return s.version, nil
+}
+
+// convertFindings maps Gitleaks findings to Redactyl findings.
+func (s *Scanner) convertFindings(gf []GitleaksFinding, ctx scanner.ScanContext) []types.Finding {
+	var findings []types.Finding
+
+	for _, f := range gf {
+		finding := types.Finding{
+			Path:       ctx.VirtualPath, // Use virtual path, not temp file path
+			Detector:   f.RuleID,
+			Match:      f.Match,
+			Secret:     f.Secret,
+			Line:       f.StartLine,
+			Column:     f.StartColumn,
+			Context:    f.Description,
+			Confidence: mapGitleaksToConfidence(f),
+			Metadata:   make(map[string]string),
+		}
+
+		// Copy context metadata
+		for k, v := range ctx.Metadata {
+			finding.Metadata[k] = v
+		}
+
+		// Add gitleaks-specific metadata
+		finding.Metadata["gitleaks_rule_id"] = f.RuleID
+		if f.Commit != "" {
+			finding.Metadata["commit"] = f.Commit
+		}
+		if f.Entropy > 0 {
+			finding.Metadata["entropy"] = fmt.Sprintf("%.2f", f.Entropy)
+		}
+
+		findings = append(findings, finding)
+	}
+
+	return findings
+}
+
+// GitleaksFinding represents Gitleaks JSON output format.
+type GitleaksFinding struct {
+	Description string  `json:"Description"`
+	RuleID      string  `json:"RuleID"`
+	Match       string  `json:"Match"`
+	Secret      string  `json:"Secret"`
+	StartLine   int     `json:"StartLine"`
+	EndLine     int     `json:"EndLine"`
+	StartColumn int     `json:"StartColumn"`
+	EndColumn   int     `json:"EndColumn"`
+	File        string  `json:"File"`
+	Commit      string  `json:"Commit"`
+	Entropy     float64 `json:"Entropy,omitempty"`
+	Author      string  `json:"Author,omitempty"`
+	Email       string  `json:"Email,omitempty"`
+	Date        string  `json:"Date,omitempty"`
+	Message     string  `json:"Message,omitempty"`
+	Tags        []string `json:"Tags,omitempty"`
+	Fingerprint string  `json:"Fingerprint,omitempty"`
+}
+
+// mapGitleaksToConfidence maps Gitleaks findings to a confidence score.
+// Gitleaks doesn't provide confidence scores, so we use heuristics:
+// - High entropy findings are generally less reliable (more false positives)
+// - Rules with specific formats/prefixes are more reliable
+// - Default to 0.8 as a reasonable baseline
+func mapGitleaksToConfidence(f GitleaksFinding) float64 {
+	// Start with default confidence
+	confidence := 0.8
+
+	// Entropy-based findings are less reliable
+	if f.Entropy > 0 {
+		// Higher entropy = lower confidence
+		// Typical entropy range: 3.0-5.0 for real secrets
+		if f.Entropy > 4.5 {
+			confidence = 0.9
+		} else if f.Entropy > 3.5 {
+			confidence = 0.75
+		} else {
+			confidence = 0.6
+		}
+	}
+
+	// Specific rule patterns are more reliable
+	// These are common high-confidence patterns from Gitleaks
+	highConfidenceRules := []string{
+		"aws-access-token",
+		"github-pat",
+		"github-fine-grained-pat",
+		"github-oauth",
+		"npm-access-token",
+		"pypi-upload-token",
+		"slack-access-token",
+		"stripe-access-token",
+	}
+
+	for _, rule := range highConfidenceRules {
+		if f.RuleID == rule {
+			confidence = 0.95
+			break
+		}
+	}
+
+	return confidence
+}
+
+// DetectConfigPath searches for a .gitleaks.toml file in common locations.
+// Returns empty string if not found.
+func DetectConfigPath(repoRoot string) string {
+	// Search order:
+	// 1. Repo root
+	// 2. .gitleaks/ subdirectory
+	// 3. .github/ subdirectory (common location)
+
+	candidates := []string{
+		filepath.Join(repoRoot, ".gitleaks.toml"),
+		filepath.Join(repoRoot, ".gitleaks", "config.toml"),
+		filepath.Join(repoRoot, ".github", ".gitleaks.toml"),
+	}
+
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return ""
+}
