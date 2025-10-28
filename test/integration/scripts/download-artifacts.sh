@@ -75,8 +75,10 @@ mkdir -p "$TEMP_DIR/large-archive"
 for i in {1..1000}; do
     # Create files with some containing secrets
     # Put secrets in first 10 files to ensure they're found even with time budgets
+    # Use high-entropy format with padded numbers for consistent Gitleaks detection
     if [ $i -le 10 ]; then
-        echo "File $i with secret: API_KEY=sk_test_${i}_1234567890abcdefghijklmnopqrst" \
+        # Pad to 3 digits and use longer random suffix for consistent high entropy
+        printf "File %03d with secret: API_KEY=sk_live_%03d_abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ\n" $i $i \
             > "$TEMP_DIR/large-archive/file_$i.txt"
     else
         echo "File $i with random content: $(head -c 100 /dev/urandom | base64)" \
