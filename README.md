@@ -12,66 +12,14 @@ Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) for detection, enhan
 
 ## Why Redactyl?
 
-Secrets don't just live in your Git history - they hide in **container images, Helm charts, CI/CD artifacts, and nested archives** where traditional scanners can't reach them.
+Secrets don't just live in Git history - they hide in **container images, Helm charts, CI/CD artifacts, and nested archives** where traditional scanners can't reach them. Redactyl finds secrets in complex cloud-native artifacts without extracting them to disk.
 
-### What Makes Redactyl Different
-
-**Deep Artifact Intelligence**
-- Scans **inside archives and containers** without extracting to disk (streaming)
-- Supports: zip, tar, tgz, Docker images, Helm charts, Kubernetes manifests
-- **Virtual paths** show exactly where secrets hide: `myapp.tar::layer-abc123::etc/config.yaml`
-- Handles nested artifacts (e.g., zip inside tar inside container)
-
-**Cloud-Native First**
-- Built for DevSecOps teams working with Kubernetes and containers
-- Scans Helm charts, K8s manifests, Terraform state files
-- IaC hotspot detection for infrastructure-as-code secrets
-- Future: registry integration, scan-on-push webhooks
-
-**Powered by Gitleaks**
-- Leverages [Gitleaks'](https://github.com/gitleaks/gitleaks) 700+ detection rules
-- Standard `.gitleaks.toml` configuration
-- Focuses our innovation on artifact complexity, not regex maintenance
-
-**Privacy-First**
-- Zero telemetry by default
-- Self-hosted friendly
-- Optional upload for enterprise dashboards (explicit opt-in)
-
-**Complete Remediation Suite**
-- Forward fixes: remove tracked files, redact in-place, generate `.env.example`
-- History rewriting: purge secrets from Git history with safety guardrails
-- Dry-run mode and audit trails
-
-## Features
-
-**Artifact Scanning**
-- Stream archives (zip, tar, tgz) without disk extraction
-- Docker container image layer scanning with context
-- Helm chart and Kubernetes manifest analysis
-- Terraform state file inspection
-- Nested artifact support with configurable depth limits
-- Guardrails: size, entry count, depth, time budgets
-
-**Detection & Analysis**
-- Powered by Gitleaks detection engine (700+ rules)
-- Context-aware structured JSON/YAML parsing
-- Virtual paths preserve artifact origin chains
-- Multiple output formats: table, JSON, SARIF 2.1.0
-
-**Developer Experience**
-- Fast multi-threaded scanning
-- Incremental cache for unchanged files
-- Pre-commit hooks and CI/CD templates
-- Clear progress indicators and colorized output
-- Config precedence: CLI > local `.redactyl.yml` > global config
-
-**Enterprise Ready**
-- SARIF output for GitHub Code Scanning
-- JSON upload to custom dashboards
-- Public Go API (`pkg/core`) for integrations
-- Baseline suppression for known findings
-- Audit-friendly summary outputs
+**Key differentiators:**
+- **Deep artifact scanning** - Stream archives, containers, Helm charts, and K8s manifests without disk extraction
+- **Virtual paths** - Track secrets through nested artifacts: `chart.tgz::templates/secret.yaml::line-123`
+- **Powered by Gitleaks** - Uses Gitleaks' detection engine; we focus on artifact intelligence
+- **Privacy-first** - Zero telemetry; self-hosted friendly
+- **Complete remediation** - Forward fixes and history rewriting with safety guardrails
 
 ## Table of contents
 
@@ -79,7 +27,6 @@ Secrets don't just live in your Git history - they hide in **container images, H
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
 - [Deep scanning](#deep-scanning)
-  - See the Deep scanning guide: [`docs/deep-scanning.md`](docs/deep-scanning.md)
 - [Detectors](#detectors)
 - [How detection works](#how-detection-works)
 - [Baseline](#baseline)
@@ -88,14 +35,11 @@ Secrets don't just live in your Git history - they hide in **container images, H
 - [Output & Exit codes](#output--exit-codes)
 - [CI usage](#ci-usage-github-actions)
 - [Pre-commit hook](#pre-commit-hook)
-- [GitHub Action template](#github-action-template)
-- [Other CI templates](#other-ci-templates)
+- [Other CI platforms](#other-ci-platforms)
 - [Privacy & Telemetry](#privacy--telemetry)
-- [AI‑assisted development](#ai-assisted-development)
 - [Public Go API](#public-go-api)
 - [Updates & Changelog](#updates--changelog)
 - [Versioning & Compatibility](#versioning--compatibility)
-- [License](#license)
 - [Contributing](#contributing)
 - [Enterprise](#enterprise)
 
@@ -238,27 +182,16 @@ gitleaks:
 
 ## Deep scanning
 
-Redactyl excels at finding secrets in complex cloud-native artifacts without extracting them to disk.
+Scan cloud-native artifacts with configurable guardrails:
 
-**Supported Artifact Types:**
-- **Archives**: zip, tar, tgz, tar.gz (nested archives supported)
-- **Container Images**: Docker saved tarballs with full layer scanning
-- **Helm Charts**: `.tgz` archives and unpacked chart directories (Chart.yaml, values.yaml, templates/)
-- **Kubernetes Manifests**: YAML files with Secrets, ConfigMaps, Deployments, etc.
-- **IaC Files**: Terraform state files, kubeconfigs
+**Supported types:**
+- Archives (zip, tar, tgz), nested archives
+- Container images (Docker tarballs, OCI format)
+- Helm charts (.tgz and directories)
+- Kubernetes manifests (YAML)
+- IaC files (Terraform state, kubeconfigs)
 
-**Key Features:**
-- **Streaming** - Never extracts to disk; entries are streamed and filtered as text
-- **Virtual Paths** - Show exactly where secrets hide:
-  - `archive.zip::docs/config.txt`
-  - `image.tar::layer-abc123::etc/app.yaml`
-  - `my-chart.tgz::templates/secret.yaml`
-  - `outer.zip::inner.tgz::nested/file.txt`
-- **Guardrails** - Abort per-artifact on size, entry count, depth, or time budgets
-- **Global Budget** - Cap total scan time across all artifacts
-- **Smart Filtering** - Artifact filenames filtered by `.redactylignore` and globs before opening
-
-**Examples:**
+**Usage:**
 
 ```sh
 # Scan archives
@@ -273,26 +206,12 @@ redactyl scan --helm
 # Scan Kubernetes manifests
 redactyl scan --k8s
 
-# Combine multiple types
-redactyl scan --containers --helm --k8s --archives
-
-# With guardrails
-redactyl scan --helm --k8s \
-  --max-archive-bytes 67108864 \
-  --scan-time-budget 5s \
-  --global-artifact-budget 30s
-```
-
-**Cloud-Native Project Scanning:**
-
-```sh
-# Typical Kubernetes project
-redactyl scan --helm --k8s -p ./k8s-deployments
-
-# Full CI/CD artifact scan
+# Combine all artifact types with guardrails
 redactyl scan --archives --containers --helm --k8s \
+  --max-archive-bytes 67108864 \
   --max-depth 3 \
-  --scan-time-budget 10s
+  --scan-time-budget 10s \
+  --global-artifact-budget 30s
 ```
 
 ## Baseline
@@ -389,19 +308,15 @@ Categories and example IDs (run `redactyl detectors` for the full, up-to-date li
 
 ## How detection works
 
-Redactyl uses **Gitleaks** as its detection engine, enhanced with artifact-aware intelligence:
-
-### Detection Flow
+Redactyl uses Gitleaks as its detection engine, enhanced with artifact-aware intelligence:
 
 1. **Artifact Streaming:** Archives and containers are streamed without disk extraction
-2. **Virtual Path Mapping:** Each entry gets a virtual path showing its origin (e.g., `image.tar::layer-abc::etc/config.yaml`)
-3. **Gitleaks Detection:** Content is scanned using Gitleaks' 700+ detection rules
+2. **Virtual Path Mapping:** Track secrets through nested artifacts (e.g., `chart.tgz::templates/secret.yaml`)
+3. **Gitleaks Detection:** Content scanned using Gitleaks' detection rules
 4. **Context Enhancement:** Structured JSON/YAML parsing adds line mapping and field context
 5. **Result Aggregation:** Findings include both Gitleaks metadata and artifact context
 
-### Configuration
-
-Detection rules are configured using standard Gitleaks `.gitleaks.toml` files:
+Configure detection rules using standard Gitleaks `.gitleaks.toml` files:
 
 ```toml
 # .gitleaks.toml
@@ -417,17 +332,7 @@ regex = '''my-custom-pattern'''
 paths = ["**/*.example", "**/test/**"]
 ```
 
-See [Gitleaks configuration docs](https://github.com/gitleaks/gitleaks#configuration) for full details.
-
-### Structured Parsing Enhancement
-
-Beyond Gitleaks' regex matching, Redactyl adds:
-
-- **JSON/YAML parsing:** Extracts key/value pairs with line mapping
-- **Artifact context:** Shows which layer, archive entry, or manifest contains the secret
-- **Nested detection:** Finds secrets in deeply nested structures that span multiple lines
-
-Common structured keys detected: `openai_api_key`, `github_token`, `aws_access_key_id`, `aws_secret_access_key`, `slack_webhook`, `discord_webhook`, `stripe_secret`, `kubernetes.io/dockerconfigjson`
+See [Gitleaks configuration docs](https://github.com/gitleaks/gitleaks#configuration) for details.
 
 ## Output & Exit codes
 
@@ -492,13 +397,11 @@ jobs:
 
 ## Pre-commit hook
 
-Install directly:
-
 ```sh
 redactyl hook install --pre-commit
 ```
 
-Or via the pre-commit framework:
+Or use the [pre-commit framework](https://pre-commit.com):
 
 ```yaml
 - repo: https://github.com/redactyl/redactyl
@@ -507,76 +410,18 @@ Or via the pre-commit framework:
     - id: redactyl-scan
 ```
 
-## GitHub Action template
+## Other CI platforms
+
+Generate templates for GitLab, Bitbucket, or Azure DevOps:
 
 ```sh
-redactyl action init
-```
-
-## Other CI templates
-
-- GitLab CI: see `docs/ci/gitlab-ci.yml`
-- Bitbucket Pipelines: see `docs/ci/bitbucket-pipelines.yml`
-- Azure DevOps: see `docs/ci/azure-pipelines.yml`
-
-Generate into your repo:
-
-```sh
-redactyl ci init --provider gitlab
-redactyl ci init --provider bitbucket
-redactyl ci init --provider azure
+redactyl ci init --provider gitlab    # or bitbucket, azure
+redactyl action init                   # GitHub Action
 ```
 
 ## Privacy & Telemetry
 
-- No code or findings are sent anywhere by default. There is **no telemetry**.
-- Optional upload is explicit via `--upload` and can omit repo metadata with `--no-upload-metadata`.
-
-## Use Cases
-
-### Container Security
-```bash
-# Scan Docker images before pushing to registry
-docker save myapp:latest | redactyl scan --containers -
-
-# Scan all images in a build directory
-redactyl scan --containers ./build/images/
-```
-
-### Kubernetes & Helm
-```bash
-# Scan Helm charts for embedded secrets
-redactyl scan --helm ./charts/myapp
-
-# Scan Kubernetes manifests
-redactyl scan --kubernetes ./k8s/
-
-# Scan before applying to cluster
-kubectl kustomize ./overlays/prod | redactyl scan --kubernetes -
-```
-
-### CI/CD Pipelines
-```bash
-# Scan build artifacts before deployment
-redactyl scan --archives ./dist/ --global-artifact-budget 2m
-
-# Scan Terraform state files
-redactyl scan --terraform ./terraform/*.tfstate
-```
-
-### AI-Assisted Development
-
-Modern AI coding assistants (Copilot, ChatGPT, etc.) sometimes suggest realistic placeholder credentials. Redactyl (via Gitleaks) catches these before they reach production:
-
-```python
-# AI assistants often suggest code like this:
-openai_client = OpenAI(
-    api_key="sk-1234567890abcdef..."  # Looks fake but matches real format
-)
-stripe.api_key = "sk_test_abc123..."   # Valid test key structure
-```
-
-Combined with artifact scanning, you catch secrets in both code and deployment artifacts.
+No telemetry by default. Optional upload via `--upload` can omit repo metadata with `--no-upload-metadata`.
 
 ## Public Go API
 
