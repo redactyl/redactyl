@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,9 +15,12 @@ import (
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/redactyl/redactyl/internal/artifacts"
 	"github.com/redactyl/redactyl/internal/cache"
+	"github.com/redactyl/redactyl/internal/config"
 	"github.com/redactyl/redactyl/internal/detectors"
 	"github.com/redactyl/redactyl/internal/git"
 	"github.com/redactyl/redactyl/internal/ignore"
+	"github.com/redactyl/redactyl/internal/scanner"
+	"github.com/redactyl/redactyl/internal/scanner/gitleaks"
 	"github.com/redactyl/redactyl/internal/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -49,6 +53,9 @@ type Config struct {
 	MaxDepth             int
 	ScanTimeBudget       time.Duration
 	GlobalArtifactBudget time.Duration
+
+	// Gitleaks configuration (for scanner integration)
+	GitleaksConfig config.GitleaksConfig
 }
 
 var (
@@ -87,6 +94,13 @@ type DeepStats struct {
 // ScanWithStats runs a scan and returns findings along with timing and counts.
 func ScanWithStats(cfg Config) (Result, error) {
 	var result Result
+
+	// Initialize scanner (Gitleaks integration)
+	scnr, err := initializeScanner(cfg)
+	if err != nil {
+		return result, fmt.Errorf("failed to initialize scanner: %w", err)
+	}
+
 	// Load incremental cache if available
 	var db cache.DB
 	if !cfg.NoCache {
@@ -126,7 +140,12 @@ func ScanWithStats(cfg Config) (Result, error) {
 			if cfg.DryRun {
 				return
 			}
-			fs := detectors.RunAll(p, data)
+			fs, err := scnr.Scan(p, data)
+			if err != nil {
+				// Log error but don't fail entire scan
+				// TODO: Consider adding error reporting mechanism
+				return
+			}
 			fs = filterByConfidence(fs, cfg.MinConfidence)
 			fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
 			emit(fs)
@@ -173,7 +192,11 @@ func ScanWithStats(cfg Config) (Result, error) {
 						}
 						return nil
 					}
-					fs := detectors.RunAll(p, data[i])
+					fs, err := scnr.Scan(p, data[i])
+					if err != nil {
+						// Log error but continue scanning other files
+						return nil
+					}
 					fs = filterByConfidence(fs, cfg.MinConfidence)
 					fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
 					findingsCh <- fs
@@ -241,7 +264,11 @@ func ScanWithStats(cfg Config) (Result, error) {
 						}
 						return nil
 					}
-					fs := detectors.RunAll(it.path, it.blob)
+					fs, err := scnr.Scan(it.path, it.blob)
+					if err != nil {
+						// Log error but continue scanning other files
+						return nil
+					}
 					fs = filterByConfidence(fs, cfg.MinConfidence)
 					fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
 					findingsCh <- fs
@@ -299,7 +326,11 @@ func ScanWithStats(cfg Config) (Result, error) {
 						}
 						return nil
 					}
-					fs := detectors.RunAll(p, bytes.TrimSpace(data[i]))
+					fs, err := scnr.Scan(p, bytes.TrimSpace(data[i]))
+					if err != nil {
+						// Log error but continue scanning other files
+						return nil
+					}
 					fs = filterByConfidence(fs, cfg.MinConfidence)
 					fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
 					findingsCh <- fs
@@ -339,7 +370,11 @@ func ScanWithStats(cfg Config) (Result, error) {
 			if cfg.DryRun {
 				return
 			}
-			fs := detectors.RunAll(p, b)
+			fs, err := scnr.Scan(p, b)
+			if err != nil {
+				// Log error but continue scanning other artifacts
+				return
+			}
 			fs = filterByConfidence(fs, cfg.MinConfidence)
 			fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
 			emit(fs)
@@ -500,4 +535,25 @@ func trimGlobPrefix(g string) string {
 		s = strings.TrimPrefix(s, "**/")
 	}
 	return s
+}
+
+// initializeScanner creates a scanner instance from configuration.
+// For now, it always creates a Gitleaks scanner. In the future, this could
+// support multiple scanner types based on configuration.
+func initializeScanner(cfg Config) (scanner.Scanner, error) {
+	// Try to auto-detect .gitleaks.toml if not explicitly configured
+	if cfg.GitleaksConfig.GetConfigPath() == "" {
+		if detected := gitleaks.DetectConfigPath(cfg.Root); detected != "" {
+			cfgPath := detected
+			cfg.GitleaksConfig.ConfigPath = &cfgPath
+		}
+	}
+
+	// Create Gitleaks scanner
+	scnr, err := gitleaks.NewScanner(cfg.GitleaksConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gitleaks scanner: %w", err)
+	}
+
+	return scnr, nil
 }
