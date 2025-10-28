@@ -189,6 +189,8 @@ test_performance() {
     if [ -f "$DOWNLOADS_DIR/large-archive.tar.gz" ]; then
         local start_time=$(date +%s)
 
+        # Large archive has 10 secrets in first 10 files (see download-artifacts.sh)
+        # Expect at least 5 to ensure scanner makes reasonable progress within time budget
         run_test "perf-large-archive" "performance" 5 \
             "Scan large archive with time budget" \
             "$REDACTYL_BIN" scan --archives \

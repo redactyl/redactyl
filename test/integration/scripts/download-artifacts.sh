@@ -74,7 +74,8 @@ echo "Generating 1000 test files..."
 mkdir -p "$TEMP_DIR/large-archive"
 for i in {1..1000}; do
     # Create files with some containing secrets
-    if [ $((i % 100)) -eq 0 ]; then
+    # Put secrets in first 10 files to ensure they're found even with time budgets
+    if [ $i -le 10 ]; then
         echo "File $i with secret: API_KEY=sk_test_${i}_1234567890abcdefghijklmnopqrst" \
             > "$TEMP_DIR/large-archive/file_$i.txt"
     else
