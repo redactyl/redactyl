@@ -16,21 +16,21 @@ import (
 
 // HelmChart represents a Helm chart metadata
 type HelmChart struct {
-	APIVersion  string            `yaml:"apiVersion"`
-	Name        string            `yaml:"name"`
-	Version     string            `yaml:"version"`
-	KubeVersion string            `yaml:"kubeVersion,omitempty"`
-	Description string            `yaml:"description,omitempty"`
-	Type        string            `yaml:"type,omitempty"`
-	Keywords    []string          `yaml:"keywords,omitempty"`
-	Home        string            `yaml:"home,omitempty"`
-	Sources     []string          `yaml:"sources,omitempty"`
-	Dependencies []HelmDependency `yaml:"dependencies,omitempty"`
-	Maintainers  []HelmMaintainer `yaml:"maintainers,omitempty"`
-	Icon        string            `yaml:"icon,omitempty"`
-	AppVersion  string            `yaml:"appVersion,omitempty"`
-	Deprecated  bool              `yaml:"deprecated,omitempty"`
-	Annotations map[string]string `yaml:"annotations,omitempty"`
+	APIVersion   string            `yaml:"apiVersion"`
+	Name         string            `yaml:"name"`
+	Version      string            `yaml:"version"`
+	KubeVersion  string            `yaml:"kubeVersion,omitempty"`
+	Description  string            `yaml:"description,omitempty"`
+	Type         string            `yaml:"type,omitempty"`
+	Keywords     []string          `yaml:"keywords,omitempty"`
+	Home         string            `yaml:"home,omitempty"`
+	Sources      []string          `yaml:"sources,omitempty"`
+	Dependencies []HelmDependency  `yaml:"dependencies,omitempty"`
+	Maintainers  []HelmMaintainer  `yaml:"maintainers,omitempty"`
+	Icon         string            `yaml:"icon,omitempty"`
+	AppVersion   string            `yaml:"appVersion,omitempty"`
+	Deprecated   bool              `yaml:"deprecated,omitempty"`
+	Annotations  map[string]string `yaml:"annotations,omitempty"`
 }
 
 // HelmDependency represents a chart dependency

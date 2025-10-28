@@ -76,10 +76,10 @@ func (s *Scanner) ScanWithContext(ctx scanner.ScanContext, data []byte) ([]types
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer func() {
-		_ = os.Remove(tmpfile.Name())
+		_ = os.Remove(tmpfile.Name()) //nolint:errcheck // Cleanup, error is not actionable
 	}()
 	defer func() {
-		_ = tmpfile.Close()
+		_ = tmpfile.Close() //nolint:errcheck // Cleanup, error is not actionable
 	}()
 
 	if _, err := tmpfile.Write(data); err != nil {
@@ -95,9 +95,9 @@ func (s *Scanner) ScanWithContext(ctx scanner.ScanContext, data []byte) ([]types
 		return nil, fmt.Errorf("failed to create report file: %w", err)
 	}
 	reportPath := reportFile.Name()
-	_ = reportFile.Close()
+	_ = reportFile.Close() //nolint:errcheck // Just getting the path, error is not actionable
 	defer func() {
-		_ = os.Remove(reportPath)
+		_ = os.Remove(reportPath) //nolint:errcheck // Cleanup, error is not actionable
 	}()
 
 	// Build gitleaks command

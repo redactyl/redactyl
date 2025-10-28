@@ -10,10 +10,10 @@ import (
 
 // OCIManifest represents an OCI image manifest (OCI Image Spec v1)
 type OCIManifest struct {
-	SchemaVersion int             `json:"schemaVersion"`
-	MediaType     string          `json:"mediaType"`
-	Config        OCIDescriptor   `json:"config"`
-	Layers        []OCIDescriptor `json:"layers"`
+	SchemaVersion int               `json:"schemaVersion"`
+	MediaType     string            `json:"mediaType"`
+	Config        OCIDescriptor     `json:"config"`
+	Layers        []OCIDescriptor   `json:"layers"`
 	Annotations   map[string]string `json:"annotations,omitempty"`
 }
 
@@ -27,32 +27,32 @@ type OCIDescriptor struct {
 
 // OCIIndex represents an OCI image index (for multi-arch images)
 type OCIIndex struct {
-	SchemaVersion int             `json:"schemaVersion"`
-	MediaType     string          `json:"mediaType"`
-	Manifests     []OCIDescriptor `json:"manifests"`
+	SchemaVersion int               `json:"schemaVersion"`
+	MediaType     string            `json:"mediaType"`
+	Manifests     []OCIDescriptor   `json:"manifests"`
 	Annotations   map[string]string `json:"annotations,omitempty"`
 }
 
 // OCIConfig represents the image configuration
 type OCIConfig struct {
-	Created      time.Time       `json:"created"`
-	Architecture string          `json:"architecture"`
-	OS           string          `json:"os"`
-	Config       OCIImageConfig  `json:"config"`
-	RootFS       OCIRootFS       `json:"rootfs"`
-	History      []OCIHistory    `json:"history"`
+	Created      time.Time      `json:"created"`
+	Architecture string         `json:"architecture"`
+	OS           string         `json:"os"`
+	Config       OCIImageConfig `json:"config"`
+	RootFS       OCIRootFS      `json:"rootfs"`
+	History      []OCIHistory   `json:"history"`
 }
 
 // OCIImageConfig contains image runtime configuration
 type OCIImageConfig struct {
-	User         string            `json:"User,omitempty"`
+	User         string              `json:"User,omitempty"`
 	ExposedPorts map[string]struct{} `json:"ExposedPorts,omitempty"`
-	Env          []string          `json:"Env,omitempty"`
-	Entrypoint   []string          `json:"Entrypoint,omitempty"`
-	Cmd          []string          `json:"Cmd,omitempty"`
+	Env          []string            `json:"Env,omitempty"`
+	Entrypoint   []string            `json:"Entrypoint,omitempty"`
+	Cmd          []string            `json:"Cmd,omitempty"`
 	Volumes      map[string]struct{} `json:"Volumes,omitempty"`
-	WorkingDir   string            `json:"WorkingDir,omitempty"`
-	Labels       map[string]string `json:"Labels,omitempty"`
+	WorkingDir   string              `json:"WorkingDir,omitempty"`
+	Labels       map[string]string   `json:"Labels,omitempty"`
 }
 
 // OCIRootFS describes the root filesystem
@@ -199,8 +199,8 @@ func DetectManifestFormat(path string) (string, error) {
 
 	// Try to parse as generic manifest to check mediaType
 	var generic struct {
-		MediaType string `json:"mediaType"`
-		SchemaVersion int `json:"schemaVersion"`
+		MediaType     string `json:"mediaType"`
+		SchemaVersion int    `json:"schemaVersion"`
 	}
 
 	if err := json.Unmarshal(data, &generic); err != nil {
