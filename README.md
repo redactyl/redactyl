@@ -16,29 +16,29 @@ Secrets don't just live in your Git history - they hide in **container images, H
 
 ### What Makes Redactyl Different
 
-**🔍 Deep Artifact Intelligence**
+**Deep Artifact Intelligence**
 - Scans **inside archives and containers** without extracting to disk (streaming)
 - Supports: zip, tar, tgz, Docker images, Helm charts, Kubernetes manifests
 - **Virtual paths** show exactly where secrets hide: `myapp.tar::layer-abc123::etc/config.yaml`
 - Handles nested artifacts (e.g., zip inside tar inside container)
 
-**🚀 Cloud-Native First**
+**Cloud-Native First**
 - Built for DevSecOps teams working with Kubernetes and containers
 - Scans Helm charts, K8s manifests, Terraform state files
 - IaC hotspot detection for infrastructure-as-code secrets
 - Future: registry integration, scan-on-push webhooks
 
-**💪 Powered by Gitleaks**
+**Powered by Gitleaks**
 - Leverages [Gitleaks'](https://github.com/gitleaks/gitleaks) 700+ detection rules
 - Standard `.gitleaks.toml` configuration
 - Focuses our innovation on artifact complexity, not regex maintenance
 
-**🔒 Privacy-First**
+**Privacy-First**
 - Zero telemetry by default
 - Self-hosted friendly
 - Optional upload for enterprise dashboards (explicit opt-in)
 
-**🛠️ Complete Remediation Suite**
+**Complete Remediation Suite**
 - Forward fixes: remove tracked files, redact in-place, generate `.env.example`
 - History rewriting: purge secrets from Git history with safety guardrails
 - Dry-run mode and audit trails
