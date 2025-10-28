@@ -27,8 +27,8 @@ Secrets don't just live in Git history - they hide in **container images, Helm c
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
 - [Deep scanning](#deep-scanning)
-- [Detectors](#detectors)
 - [How detection works](#how-detection-works)
+- [Filtering results](#filtering-results)
 - [Baseline](#baseline)
 - [.redactylignore](#redactylignore)
 - [Remediation](#remediation)
@@ -276,35 +276,22 @@ testdata/**
   ```
 - Add `--dry-run` to print the exact commands without executing, and `--summary purge.json` to write a small remediation summary JSON you can parse in CI.
 
-## Detectors
+## Filtering results
 
-List available IDs:
+Redactyl uses Gitleaks' detection rules. Filter findings by Gitleaks rule IDs:
 
 ```sh
+# Show only specific rule IDs
+redactyl scan --enable "github-pat,aws-access-key,private-key"
+
+# Exclude specific rule IDs
+redactyl scan --disable "generic-api-key"
+
+# List common rule IDs
 redactyl detectors
 ```
 
-Enable only specific detectors:
-
-```sh
-redactyl scan --enable "twilio,github_token"
-```
-
-Disable specific detectors:
-
-```sh
-redactyl scan --disable "entropy_context"
-```
-
-<!-- BEGIN:DETECTORS_CATEGORIES -->
-
-Categories and example IDs (run `redactyl detectors` for the full, up-to-date list):
-
-- AI providers:
-  - anthropic-api-key, openai-api-key
-- Other common services:
-  - aws-access-key, aws-mws-key, aws-secret-key, docker-config-auth, gcp-service-account, generic-api-key, github-app-token, github-fine-grained-pat, github-oauth, github-pat, gitlab-pat, gitlab-pipeline-token, gitlab-runner-token, google-api-key, google-oauth, jwt, npm-access-token, private-key, pypi-token, sendgrid-api-key, slack-app-token, slack-bot-token, slack-webhook-url, stripe-access-token, stripe-secret-key
-<!-- END:DETECTORS_CATEGORIES -->
+**Note:** These flags filter results after scanning. To configure Gitleaks rules themselves, use a `.gitleaks.toml` file (see [How detection works](#how-detection-works)).
 
 ## How detection works
 
