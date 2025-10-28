@@ -48,6 +48,8 @@ type Config struct {
 	ScanArchives         bool
 	ScanContainers       bool
 	ScanIaC              bool
+	ScanHelm             bool // Scan Helm charts
+	ScanK8s              bool // Scan Kubernetes manifests
 	MaxArchiveBytes      int64
 	MaxEntries           int
 	MaxDepth             int
@@ -354,7 +356,7 @@ func ScanWithStats(cfg Config) (Result, error) {
 	}
 
 	// Optional deep artifact scanning (sequential orchestration, internal parallelism TBD)
-	if cfg.ScanArchives || cfg.ScanContainers || cfg.ScanIaC {
+	if cfg.ScanArchives || cfg.ScanContainers || cfg.ScanIaC || cfg.ScanHelm || cfg.ScanK8s {
 		lim := artifacts.Limits{
 			MaxArchiveBytes: cfg.MaxArchiveBytes,
 			MaxEntries:      cfg.MaxEntries,
@@ -397,6 +399,12 @@ func ScanWithStats(cfg Config) (Result, error) {
 		}
 		if cfg.ScanIaC {
 			_ = artifacts.ScanIaCWithFilter(cfg.Root, lim, allowArtifact, emitArtifact) //nolint:errcheck
+		}
+		if cfg.ScanHelm {
+			_ = artifacts.ScanHelmChartsWithFilter(cfg.Root, lim, allowArtifact, emitArtifact) //nolint:errcheck
+		}
+		if cfg.ScanK8s {
+			_ = artifacts.ScanK8sManifestsWithFilter(cfg.Root, lim, allowArtifact, emitArtifact) //nolint:errcheck
 		}
 		result.ArtifactStats = DeepStats{
 			AbortedByBytes:   artStats.AbortedByBytes,

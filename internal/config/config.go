@@ -29,6 +29,8 @@ type FileConfig struct {
 	Archives             *bool   `yaml:"archives"`
 	Containers           *bool   `yaml:"containers"`
 	IaC                  *bool   `yaml:"iac"`
+	Helm                 *bool   `yaml:"helm"`
+	K8s                  *bool   `yaml:"k8s"`
 	MaxArchiveBytes      *int64  `yaml:"max_archive_bytes"`
 	MaxEntries           *int    `yaml:"max_entries"`
 	MaxDepth             *int    `yaml:"max_depth"`
