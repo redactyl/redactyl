@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: integration-test-results
           path: test/integration/results/
@@ -118,7 +118,7 @@ jobs:
           VERBOSE: "1"
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: performance-benchmarks
           path: test/integration/results/
