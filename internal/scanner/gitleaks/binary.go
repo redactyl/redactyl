@@ -177,7 +177,11 @@ func (bm *BinaryManager) Download(version string) (string, error) {
 		return "", fmt.Errorf("failed to create temp file for gitleaks download: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	defer func() { _ = os.Remove(tmpPath) }()
+	defer func() {
+		if removeErr := os.Remove(tmpPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			// best-effort cleanup; ignore further
+		}
+	}()
 
 	if isZip {
 		if err := extractFromZip(resp.Body, executableName(), tmpPath); err != nil {
@@ -281,7 +285,9 @@ func (bm *BinaryManager) copyToLegacy(source string) error {
 		return fmt.Errorf("failed to open gitleaks binary for copying: %w", err)
 	}
 	defer func() {
-		_ = input.Close()
+		if closeErr := input.Close(); closeErr != nil {
+			// ignore close error during cleanup
+		}
 	}()
 
 	output, err := os.Create(legacy)
@@ -289,7 +295,9 @@ func (bm *BinaryManager) copyToLegacy(source string) error {
 		return fmt.Errorf("failed to create legacy gitleaks binary: %w", err)
 	}
 	defer func() {
-		_ = output.Close()
+		if closeErr := output.Close(); closeErr != nil {
+			// ignore close error during cleanup
+		}
 	}()
 
 	if _, err := io.Copy(output, input); err != nil {
