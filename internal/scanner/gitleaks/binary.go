@@ -42,7 +42,7 @@ func NewBinaryManager(customPath string) *BinaryManager {
 	}
 }
 
-// Find locates a Gitleaks binary honouring an expected version (when provided).
+// Find locates a Gitleaks binary honoring an expected version (when provided).
 // Search order:
 //  1. Custom path (if configured)
 //  2. $PATH
@@ -201,11 +201,15 @@ func (bm *BinaryManager) Download(version string) (string, error) {
 
 	actual, err := bm.Version(destPath)
 	if err != nil {
-		_ = os.Remove(destPath)
+		if removeErr := os.Remove(destPath); removeErr != nil {
+			return "", fmt.Errorf("failed to verify downloaded gitleaks version: %w (cleanup error: %v)", err, removeErr)
+		}
 		return "", fmt.Errorf("failed to verify downloaded gitleaks version: %w", err)
 	}
 	if normalizeVersion(actual) != normalized {
-		_ = os.Remove(destPath)
+		if removeErr := os.Remove(destPath); removeErr != nil {
+			return "", fmt.Errorf("%w: downloaded binary reports %s (expected %s); cleanup error: %v", errVersionMismatch, actual, normalized, removeErr)
+		}
 		return "", fmt.Errorf("%w: downloaded binary reports %s (expected %s)", errVersionMismatch, actual, normalized)
 	}
 
@@ -276,13 +280,17 @@ func (bm *BinaryManager) copyToLegacy(source string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open gitleaks binary for copying: %w", err)
 	}
-	defer input.Close()
+	defer func() {
+		_ = input.Close()
+	}()
 
 	output, err := os.Create(legacy)
 	if err != nil {
 		return fmt.Errorf("failed to create legacy gitleaks binary: %w", err)
 	}
-	defer func() { _ = output.Close() }()
+	defer func() {
+		_ = output.Close()
+	}()
 
 	if _, err := io.Copy(output, input); err != nil {
 		return fmt.Errorf("failed to copy gitleaks binary: %w", err)
