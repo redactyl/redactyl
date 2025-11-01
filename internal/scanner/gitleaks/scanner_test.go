@@ -98,6 +98,54 @@ func TestScanner_Scan(t *testing.T) {
 	}
 }
 
+func TestScanner_ScanBatch(t *testing.T) {
+	// Skip if gitleaks not available
+	if _, err := exec.LookPath("gitleaks"); err != nil {
+		t.Skip("gitleaks not in PATH, skipping integration test")
+	}
+
+	cfg := config.GitleaksConfig{}
+	autoDownload := false
+	cfg.AutoDownload = &autoDownload
+
+	s, err := NewScanner(cfg)
+	require.NoError(t, err)
+
+	inputs := []scanner.BatchInput{
+		{
+			Path: "file-a.txt",
+			Data: []byte("token = ghp_ABCDEFGHIJKLMNOPQRST1234567890ab"),
+			Context: scanner.ScanContext{
+				VirtualPath: "file-a.txt",
+				Metadata:    map[string]string{"source": "batch-test"},
+			},
+		},
+		{
+			Path: "archive.tar::inner.txt",
+			Data: []byte("token = ghp_ZYXWVUTSRQPONMLKJIHGFEDCBA0987ABCD"),
+			Context: scanner.ScanContext{
+				VirtualPath: "archive.tar::inner.txt",
+				Metadata:    map[string]string{"artifact": "archive.tar"},
+			},
+		},
+	}
+
+	findings, err := s.ScanBatch(inputs)
+	require.NoError(t, err)
+	assert.NotEmpty(t, findings, "expected findings from batched scan")
+
+	paths := map[string]struct{}{}
+	for _, f := range findings {
+		paths[f.Path] = struct{}{}
+	}
+	if _, ok := paths["file-a.txt"]; !ok {
+		t.Fatalf("expected batched findings to include file-a.txt path, got %#v", paths)
+	}
+	if _, ok := paths["archive.tar::inner.txt"]; !ok {
+		t.Fatalf("expected batched findings to include archive.tar::inner.txt path, got %#v", paths)
+	}
+}
+
 func TestScanner_ScanWithContext(t *testing.T) {
 	// Skip if gitleaks not available
 	if _, err := exec.LookPath("gitleaks"); err != nil {

@@ -1,26 +1,34 @@
-# Artifact Scanning Benchmarks
+# Redactyl Benchmarks
 
-Performance benchmarks for Redactyl's artifact scanning capabilities.
+Performance micro-benchmarks for our artifact streaming layer and the batched engine dispatcher.
 
 ## Running Benchmarks
 
 ```bash
-# Run all benchmarks
-go test -bench=. -benchmem ./internal/artifacts/
+# Run all benchmark suites (artifacts + engine dispatcher)
+make bench
 
-# Run specific benchmark
-go test -bench=BenchmarkZipScanning -benchmem ./internal/artifacts/
+# Artifacts only
+go test -run ^$ -bench=. -benchmem ./internal/artifacts
 
-# Run with longer duration for more accurate results
-go test -bench=. -benchmem -benchtime=1s ./internal/artifacts/
+# Engine dispatcher only
+go test -run ^$ -bench=. -benchmem ./internal/engine
 
-# Save results for comparison
-go test -bench=. -benchmem ./internal/artifacts/ > bench_baseline.txt
+# Increase sample time for tighter numbers
+go test -run ^$ -bench=BenchmarkZipScanning -benchmem -benchtime=1s ./internal/artifacts
+```
+
+To compare before/after changes:
+
+```bash
+go test -run ^$ -bench=. -benchmem ./internal/artifacts > before.txt
+go test -run ^$ -bench=. -benchmem ./internal/artifacts > after.txt
+benchstat before.txt after.txt
 ```
 
 ## Benchmark Results (Reference)
 
-Tested on Apple M1 Pro (ARM64):
+Tested on Apple M1 Pro (ARM64) with Go 1.25.1. Treat these as ballpark numbers—hardware, Go version, and background load will influence results.
 
 ### Archive Scanning
 
@@ -72,6 +80,16 @@ Tested on Apple M1 Pro (ARM64):
 - Nested archive scanning adds minimal overhead
 - Inner archive is extracted to memory, not disk
 - Streaming architecture prevents memory bloat
+
+### Engine Batch Dispatch (Scan Scheduler)
+
+`BenchmarkEngineProcessChunk` exercises the batched dispatcher with a stub scanner to isolate scheduling overhead. Run it with:
+
+```bash
+go test -run ^$ -bench=BenchmarkEngineProcessChunk -benchmem ./internal/engine
+```
+
+Use the reported `MB/s`, `ns/op`, and allocation counts to validate that batching stays within expected bounds on your hardware. A typical healthy run should show microsecond-level scheduling cost and allocations scaling with the configured chunk size.
 
 ## Performance Characteristics
 
@@ -205,17 +223,11 @@ redactyl scan --max-archive-bytes 104857600  # 100MB
 
 ## Continuous Benchmarking
 
-We track benchmark regressions in CI:
+Benchmarks are intended for local regression checks. When optimizing:
 
-- Baseline benchmarks run on every commit
-- Performance must stay within 10% of baseline
-- Major improvements documented in changelog
-
-To update baseline:
-
-```bash
-make bench-baseline  # Run and save new baseline
-```
+1. Capture `before.txt` and `after.txt` snapshots as shown above.
+2. Compare with `benchstat` (or `benchstat -delta-test none` for noisy data).
+3. Attach the diff to performance-sensitive pull requests.
 
 ## Contributing
 
@@ -225,14 +237,3 @@ When optimizing performance:
 2. Ensure accuracy doesn't degrade (test coverage)
 3. Document any trade-offs
 4. Update this file with new insights
-
-```bash
-# Before optimization
-go test -bench=BenchmarkZipScanning -count=5 > before.txt
-
-# After optimization
-go test -bench=BenchmarkZipScanning -count=5 > after.txt
-
-# Compare with benchstat
-benchstat before.txt after.txt
-```

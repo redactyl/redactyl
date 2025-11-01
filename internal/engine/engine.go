@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
@@ -21,7 +19,6 @@ import (
 	"github.com/redactyl/redactyl/internal/scanner"
 	"github.com/redactyl/redactyl/internal/scanner/gitleaks"
 	"github.com/redactyl/redactyl/internal/types"
-	"golang.org/x/sync/errgroup"
 )
 
 // Config controls scanning behavior including scope, performance, and filters.
@@ -63,6 +60,93 @@ var (
 	EnableDetectors  string
 	DisableDetectors string
 )
+
+type pendingScan struct {
+	input    scanner.BatchInput
+	cacheKey string
+	cacheVal string
+}
+
+func cloneMetadata(meta map[string]string) map[string]string {
+	if meta == nil {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(meta))
+	for k, v := range meta {
+		out[k] = v
+	}
+	return out
+}
+
+func makeBatchInput(path string, data []byte, ctx *scanner.ScanContext) scanner.BatchInput {
+	var sc scanner.ScanContext
+	if ctx != nil {
+		sc = *ctx
+		sc.Metadata = cloneMetadata(ctx.Metadata)
+	} else {
+		sc = scanner.ScanContext{}
+	}
+	if sc.VirtualPath == "" {
+		sc.VirtualPath = path
+	}
+	if sc.RealPath == "" {
+		sc.RealPath = path
+	}
+	if sc.Metadata == nil {
+		sc.Metadata = map[string]string{}
+	}
+	return scanner.BatchInput{
+		Path:    sc.VirtualPath,
+		Data:    data,
+		Context: sc,
+	}
+}
+
+func determineBatchSize(threads int) int {
+	if threads <= 0 {
+		threads = runtime.GOMAXPROCS(0)
+	}
+	if threads < 2 {
+		threads = 2
+	}
+	if threads > 32 {
+		threads = 32
+	}
+	return threads * 4
+}
+
+func processChunk(scnr scanner.Scanner, cfg Config, chunk []pendingScan, emit func([]types.Finding), updated map[string]string, res *Result) error {
+	if len(chunk) == 0 {
+		return nil
+	}
+
+	cacheOK := true
+	if !cfg.DryRun {
+		inputs := make([]scanner.BatchInput, len(chunk))
+		for i, job := range chunk {
+			inputs[i] = job.input
+		}
+		findings, err := scnr.ScanBatch(inputs)
+		if err == nil {
+			findings = filterByConfidence(findings, cfg.MinConfidence)
+			findings = filterByIDs(findings, cfg.EnableDetectors, cfg.DisableDetectors)
+			emit(findings)
+		} else {
+			cacheOK = false
+		}
+	}
+
+	for _, job := range chunk {
+		res.FilesScanned++
+		if cfg.Progress != nil {
+			cfg.Progress()
+		}
+		if cacheOK && !cfg.NoCache && !cfg.DryRun && job.cacheKey != "" && job.cacheVal != "" {
+			updated[job.cacheKey] = job.cacheVal
+		}
+	}
+	return nil
+}
 
 // DetectorIDs returns the list of available Gitleaks detector IDs.
 // This is a representative list of common Gitleaks rules for UI purposes.
@@ -149,33 +233,38 @@ func ScanWithStats(cfg Config) (Result, error) {
 
 	// working tree / staged
 	if cfg.HistoryCommits == 0 && cfg.BaseBranch == "" {
+		batchSize := determineBatchSize(threads)
+		queue := make([]pendingScan, 0, batchSize)
+		var walkErr error
+
 		err := Walk(ctx, cfg, ign, func(p string, data []byte) {
+			if walkErr != nil {
+				return
+			}
 			// compute cheap content hash; small overhead but enables skipping next run
 			h := fastHash(data)
 			if !cfg.NoCache && db.Entries != nil && db.Entries[p] == h {
 				return
 			}
-			result.FilesScanned++
-			if cfg.Progress != nil {
-				cfg.Progress()
-			}
-			if cfg.DryRun {
-				return
-			}
-			fs, err := scnr.Scan(p, data)
-			if err != nil {
-				// Log error but don't fail entire scan
-				// TODO: Consider adding error reporting mechanism
-				return
-			}
-			fs = filterByConfidence(fs, cfg.MinConfidence)
-			fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
-			emit(fs)
-			if !cfg.NoCache {
-				updated[p] = h
+			queue = append(queue, pendingScan{
+				input:    makeBatchInput(p, data, nil),
+				cacheKey: p,
+				cacheVal: h,
+			})
+			if len(queue) >= batchSize {
+				if err := processChunk(scnr, cfg, queue, emit, updated, &result); err != nil {
+					walkErr = err
+				}
+				queue = queue[:0]
 			}
 		})
 		if err != nil {
+			return result, err
+		}
+		if walkErr != nil {
+			return result, walkErr
+		}
+		if err := processChunk(scnr, cfg, queue, emit, updated, &result); err != nil {
 			return result, err
 		}
 	}
@@ -184,60 +273,32 @@ func ScanWithStats(cfg Config) (Result, error) {
 	if cfg.ScanStaged {
 		files, data, err := git.StagedDiff(cfg.Root)
 		if err == nil {
-			var scanned int64
-			var mu sync.Mutex
-			g, _ := errgroup.WithContext(context.Background())
-			g.SetLimit(threads)
-
-			findingsCh := make(chan []types.Finding, threads*2)
-			done := make(chan struct{})
-			go func() {
-				for fs := range findingsCh {
-					emit(fs)
-				}
-				close(done)
-			}()
-
+			batchSize := determineBatchSize(threads)
+			jobs := make([]pendingScan, 0, len(files))
 			for i, p := range files {
-				i, p := i, p
-				g.Go(func() error {
-					if !allowedByGlobs(p, cfg) {
-						return nil
-					}
-					if cfg.MaxBytes > 0 && int64(len(data[i])) > cfg.MaxBytes {
-						return nil
-					}
-					atomic.AddInt64(&scanned, 1)
-					if cfg.DryRun {
-						if cfg.Progress != nil {
-							cfg.Progress()
-						}
-						return nil
-					}
-					fs, err := scnr.Scan(p, data[i])
-					if err != nil {
-						// Log error but continue scanning other files
-						return nil
-					}
-					fs = filterByConfidence(fs, cfg.MinConfidence)
-					fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
-					findingsCh <- fs
-					if !cfg.NoCache {
-						h := fastHash(data[i])
-						mu.Lock()
-						updated[p] = h
-						mu.Unlock()
-					}
-					if cfg.Progress != nil {
-						cfg.Progress()
-					}
-					return nil
+				if !allowedByGlobs(p, cfg) {
+					continue
+				}
+				if cfg.MaxBytes > 0 && int64(len(data[i])) > cfg.MaxBytes {
+					continue
+				}
+				jobs = append(jobs, pendingScan{
+					input:    makeBatchInput(p, data[i], nil),
+					cacheKey: p,
+					cacheVal: fastHash(data[i]),
 				})
 			}
-			_ = g.Wait()
-			close(findingsCh)
-			<-done
-			result.FilesScanned += int(scanned)
+			for len(jobs) > 0 {
+				end := batchSize
+				if end > len(jobs) {
+					end = len(jobs)
+				}
+				chunk := jobs[:end]
+				if err := processChunk(scnr, cfg, chunk, emit, updated, &result); err != nil {
+					return result, err
+				}
+				jobs = jobs[end:]
+			}
 		}
 	}
 
@@ -245,11 +306,8 @@ func ScanWithStats(cfg Config) (Result, error) {
 	if cfg.HistoryCommits > 0 {
 		entries, err := git.LastNCommits(cfg.Root, cfg.HistoryCommits)
 		if err == nil {
-			type pair struct {
-				path string
-				blob []byte
-			}
-			var items []pair
+			batchSize := determineBatchSize(threads)
+			var jobs []pendingScan
 			for _, e := range entries {
 				for path, blob := range e.Files {
 					if !allowedByGlobs(path, cfg) {
@@ -261,55 +319,24 @@ func ScanWithStats(cfg Config) (Result, error) {
 					if int64(len(blob)) > cfg.MaxBytes {
 						continue
 					}
-					items = append(items, pair{path: path, blob: blob})
+					jobs = append(jobs, pendingScan{
+						input:    makeBatchInput(path, blob, nil),
+						cacheKey: path,
+						cacheVal: fastHash(blob),
+					})
 				}
 			}
-			var scanned int64
-			var mu sync.Mutex
-			g, _ := errgroup.WithContext(context.Background())
-			g.SetLimit(threads)
-			findingsCh := make(chan []types.Finding, threads*2)
-			done := make(chan struct{})
-			go func() {
-				for fs := range findingsCh {
-					emit(fs)
+			for len(jobs) > 0 {
+				end := batchSize
+				if end > len(jobs) {
+					end = len(jobs)
 				}
-				close(done)
-			}()
-			for _, it := range items {
-				it := it
-				g.Go(func() error {
-					atomic.AddInt64(&scanned, 1)
-					if cfg.DryRun {
-						if cfg.Progress != nil {
-							cfg.Progress()
-						}
-						return nil
-					}
-					fs, err := scnr.Scan(it.path, it.blob)
-					if err != nil {
-						// Log error but continue scanning other files
-						return nil
-					}
-					fs = filterByConfidence(fs, cfg.MinConfidence)
-					fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
-					findingsCh <- fs
-					if !cfg.NoCache {
-						h := fastHash(it.blob)
-						mu.Lock()
-						updated[it.path] = h
-						mu.Unlock()
-					}
-					if cfg.Progress != nil {
-						cfg.Progress()
-					}
-					return nil
-				})
+				chunk := jobs[:end]
+				if err := processChunk(scnr, cfg, chunk, emit, updated, &result); err != nil {
+					return result, err
+				}
+				jobs = jobs[end:]
 			}
-			_ = g.Wait()
-			close(findingsCh)
-			<-done
-			result.FilesScanned += int(scanned)
 		}
 	}
 
@@ -317,61 +344,36 @@ func ScanWithStats(cfg Config) (Result, error) {
 	if cfg.BaseBranch != "" {
 		files, data, err := git.DiffAgainst(cfg.Root, cfg.BaseBranch)
 		if err == nil {
-			var scanned int64
-			var mu sync.Mutex
-			g, _ := errgroup.WithContext(context.Background())
-			g.SetLimit(threads)
-			findingsCh := make(chan []types.Finding, threads*2)
-			done := make(chan struct{})
-			go func() {
-				for fs := range findingsCh {
-					emit(fs)
-				}
-				close(done)
-			}()
+			batchSize := determineBatchSize(threads)
+			jobs := make([]pendingScan, 0, len(files))
 			for i, p := range files {
-				i, p := i, p
-				g.Go(func() error {
-					if !allowedByGlobs(p, cfg) {
-						return nil
-					}
-					if ign.Match(p) {
-						return nil
-					}
-					if cfg.MaxBytes > 0 && int64(len(data[i])) > cfg.MaxBytes {
-						return nil
-					}
-					atomic.AddInt64(&scanned, 1)
-					if cfg.DryRun {
-						if cfg.Progress != nil {
-							cfg.Progress()
-						}
-						return nil
-					}
-					fs, err := scnr.Scan(p, bytes.TrimSpace(data[i]))
-					if err != nil {
-						// Log error but continue scanning other files
-						return nil
-					}
-					fs = filterByConfidence(fs, cfg.MinConfidence)
-					fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
-					findingsCh <- fs
-					if !cfg.NoCache {
-						h := fastHash(data[i])
-						mu.Lock()
-						updated[p] = h
-						mu.Unlock()
-					}
-					if cfg.Progress != nil {
-						cfg.Progress()
-					}
-					return nil
+				if !allowedByGlobs(p, cfg) {
+					continue
+				}
+				if ign.Match(p) {
+					continue
+				}
+				if cfg.MaxBytes > 0 && int64(len(data[i])) > cfg.MaxBytes {
+					continue
+				}
+				trimmed := bytes.TrimSpace(data[i])
+				jobs = append(jobs, pendingScan{
+					input:    makeBatchInput(p, trimmed, nil),
+					cacheKey: p,
+					cacheVal: fastHash(trimmed),
 				})
 			}
-			_ = g.Wait()
-			close(findingsCh)
-			<-done
-			result.FilesScanned += int(scanned)
+			for len(jobs) > 0 {
+				end := batchSize
+				if end > len(jobs) {
+					end = len(jobs)
+				}
+				chunk := jobs[:end]
+				if err := processChunk(scnr, cfg, chunk, emit, updated, &result); err != nil {
+					return result, err
+				}
+				jobs = jobs[end:]
+			}
 		}
 	}
 
@@ -388,24 +390,39 @@ func ScanWithStats(cfg Config) (Result, error) {
 		if cfg.GlobalArtifactBudget > 0 {
 			lim.GlobalDeadline = time.Now().Add(cfg.GlobalArtifactBudget)
 		}
+		batchSize := determineBatchSize(threads)
+		artifactQueue := make([]pendingScan, 0, batchSize)
+		var artifactErr error
+		flushArtifacts := func() {
+			if len(artifactQueue) == 0 {
+				return
+			}
+			defer func() { artifactQueue = artifactQueue[:0] }()
+			if artifactErr != nil {
+				return
+			}
+			if err := processChunk(scnr, cfg, artifactQueue, emit, updated, &result); err != nil {
+				artifactErr = err
+			}
+		}
 		emitArtifact := func(p string, b []byte) {
+			if artifactErr != nil {
+				return
+			}
 			if cfg.DryRun {
 				return
 			}
-			fs, err := scnr.Scan(p, b)
-			if err != nil {
-				// Log error but continue scanning other artifacts
-				return
+			ctx := scanner.ScanContext{
+				VirtualPath: p,
+				RealPath:    p,
 			}
-			fs = filterByConfidence(fs, cfg.MinConfidence)
-			fs = filterByIDs(fs, cfg.EnableDetectors, cfg.DisableDetectors)
-			emit(fs)
-			if !cfg.NoCache {
-				updated[p] = fastHash(b)
-			}
-			result.FilesScanned++
-			if cfg.Progress != nil {
-				cfg.Progress()
+			artifactQueue = append(artifactQueue, pendingScan{
+				input:    makeBatchInput(p, b, &ctx),
+				cacheKey: p,
+				cacheVal: fastHash(b),
+			})
+			if len(artifactQueue) >= batchSize {
+				flushArtifacts()
 			}
 		}
 		// Reuse include/exclude globs to filter which artifact filenames are processed
@@ -425,6 +442,10 @@ func ScanWithStats(cfg Config) (Result, error) {
 		}
 		if cfg.ScanK8s {
 			_ = artifacts.ScanK8sManifestsWithFilter(cfg.Root, lim, allowArtifact, emitArtifact) //nolint:errcheck
+		}
+		flushArtifacts()
+		if artifactErr != nil {
+			return result, artifactErr
 		}
 		result.ArtifactStats = DeepStats{
 			AbortedByBytes:   artStats.AbortedByBytes,

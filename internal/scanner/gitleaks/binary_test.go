@@ -31,7 +31,7 @@ func TestBinaryManager_Find_InPath(t *testing.T) {
 	}
 
 	bm := NewBinaryManager("")
-	path, err := bm.Find()
+	path, err := bm.Find("")
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, path)
@@ -46,7 +46,7 @@ func TestBinaryManager_Find_CustomPath(t *testing.T) {
 	require.NoError(t, err)
 
 	bm := NewBinaryManager(fakeBinary)
-	path, err := bm.Find()
+	path, err := bm.Find("")
 
 	require.NoError(t, err)
 	assert.Equal(t, fakeBinary, path)
@@ -54,7 +54,7 @@ func TestBinaryManager_Find_CustomPath(t *testing.T) {
 
 func TestBinaryManager_Find_CustomPath_NotFound(t *testing.T) {
 	bm := NewBinaryManager("/nonexistent/gitleaks")
-	_, err := bm.Find()
+	_, err := bm.Find("")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "custom gitleaks path not found")
@@ -72,7 +72,7 @@ func TestBinaryManager_Find_NotFound(t *testing.T) {
 		t.Skip("gitleaks found in PATH, skipping not-found test")
 	}
 
-	_, err := bm.Find()
+	_, err := bm.Find("")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "gitleaks binary not found")
 }
@@ -142,26 +142,28 @@ func TestBinaryManager_Download(t *testing.T) {
 	}
 
 	// Test downloading a specific version
-	err := bm.Download("8.18.0")
+	path, err := bm.Download("8.18.0")
 	require.NoError(t, err)
 
-	// Verify binary was downloaded
-	binaryName := "gitleaks"
+	expectedName := "gitleaks-8.18.0"
 	if runtime.GOOS == "windows" {
-		binaryName += ".exe"
+		expectedName += ".exe"
 	}
-	binaryPath := filepath.Join(tmpDir, binaryName)
-	assert.FileExists(t, binaryPath)
+	assert.Equal(t, filepath.Join(tmpDir, expectedName), path)
+	assert.FileExists(t, path)
+
+	legacyPath := filepath.Join(tmpDir, executableName())
+	assert.FileExists(t, legacyPath)
 
 	// Verify it's executable (on Unix)
 	if runtime.GOOS != "windows" {
-		info, err := os.Stat(binaryPath)
+		info, err := os.Stat(path)
 		require.NoError(t, err)
 		assert.True(t, info.Mode()&0111 != 0, "binary should be executable")
 	}
 
 	// Verify we can get version from downloaded binary
-	version, err := bm.Version(binaryPath)
+	version, err := bm.Version(path)
 	require.NoError(t, err)
 	assert.Contains(t, version, "8.18")
 }
@@ -177,14 +179,10 @@ func TestBinaryManager_Download_Latest(t *testing.T) {
 	}
 
 	// Test downloading latest version
-	err := bm.Download("latest")
+	path, err := bm.Download("latest")
 	require.NoError(t, err)
 
-	// Verify binary exists
-	binaryName := "gitleaks"
-	if runtime.GOOS == "windows" {
-		binaryName += ".exe"
-	}
-	binaryPath := filepath.Join(tmpDir, binaryName)
-	assert.FileExists(t, binaryPath)
+	assert.FileExists(t, path)
+	legacyPath := filepath.Join(tmpDir, executableName())
+	assert.FileExists(t, legacyPath)
 }

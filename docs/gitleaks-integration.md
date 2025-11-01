@@ -65,7 +65,7 @@ Redactyl includes a `BinaryManager` (`internal/scanner/gitleaks/binary.go`) that
 **Search Order:**
 1. Custom path (if specified via config)
 2. `$PATH` lookup
-3. Cached binary in `~/.redactyl/bin/gitleaks`
+3. Versioned cache in `~/.redactyl/bin/gitleaks-<version>` (falls back to the legacy `gitleaks` binary)
 
 **Auto-Download:**
 When enabled (default), Redactyl automatically downloads Gitleaks from GitHub releases if not found:
@@ -73,7 +73,11 @@ When enabled (default), Redactyl automatically downloads Gitleaks from GitHub re
 - Downloads appropriate archive from GitHub releases
 - Extracts binary to `~/.redactyl/bin/`
 - Makes executable (Unix only)
+- Verifies the downloaded binary reports the expected version and caches it under its own filename
 
+Downloads use a short (10s) HTTP timeout so CI runs fail fast, and the fetched binary is also copied to `~/.redactyl/bin/gitleaks` for backwards compatibility with older setups.
+
+> **Testing note:** The downloader tests reach out to GitHub to fetch release assets. They are skipped automatically when running with `go test -short`; run `go test ./internal/scanner/gitleaks` without `-short` when you need to exercise the real download path.
 ### 2. Scanner Abstraction
 
 Redactyl uses a `Scanner` interface to decouple detection engines:
@@ -98,13 +102,13 @@ type ScanContext struct {
 
 ### 3. Scanning Process
 
-**For each file extracted from an artifact:**
+**For each batch of files extracted from artifacts:**
 
-1. **Write to temp file**: Gitleaks requires files on disk
-2. **Call Gitleaks**: `gitleaks detect --no-git --report-path=/tmp/report.json /tmp/file`
-3. **Parse JSON output**: Read findings from report file
-4. **Remap paths**: Convert temp paths back to virtual paths
-5. **Enrich metadata**: Add artifact context and Gitleaks rule IDs
+1. **Write to a temporary workspace**: Each file is persisted under a synthetic filename inside a single temp directory so Gitleaks can read it from disk.
+2. **Call Gitleaks once per batch**: `gitleaks detect --no-git --report-path=/tmp/report.json --source /tmp/redactyl-batch` scans every file in the batch in one subprocess.
+3. **Parse JSON output**: Read findings from the shared report file.
+4. **Remap paths**: Convert synthetic filenames back to virtual paths and artifact chains.
+5. **Enrich metadata**: Add artifact context and Gitleaks rule IDs to each finding.
 
 ### 4. Finding Conversion
 

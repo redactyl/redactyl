@@ -113,6 +113,46 @@ func resolveBudgets(flagBudget time.Duration, lcfg, gcfg config.FileConfig, flag
 	return budget, globalBudget
 }
 
+func cloneStringPtr(src *string) *string {
+	if src == nil {
+		return nil
+	}
+	val := *src
+	return &val
+}
+
+func cloneBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	val := *src
+	return &val
+}
+
+func mergeGitleaksConfig(gcfg, lcfg config.FileConfig) config.GitleaksConfig {
+	var merged config.GitleaksConfig
+	apply := func(src *config.GitleaksConfig) {
+		if src == nil {
+			return
+		}
+		if src.ConfigPath != nil {
+			merged.ConfigPath = cloneStringPtr(src.ConfigPath)
+		}
+		if src.BinaryPath != nil {
+			merged.BinaryPath = cloneStringPtr(src.BinaryPath)
+		}
+		if src.AutoDownload != nil {
+			merged.AutoDownload = cloneBoolPtr(src.AutoDownload)
+		}
+		if src.Version != nil {
+			merged.Version = cloneStringPtr(src.Version)
+		}
+	}
+	apply(gcfg.Gitleaks)
+	apply(lcfg.Gitleaks)
+	return merged
+}
+
 func runScan(cmd *cobra.Command, _ []string) error {
 	abs, _ := filepath.Abs(flagPath)
 	// Load configs: CLI > local > global
@@ -153,6 +193,7 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		MaxDepth:             pickInt(flagMaxDepth, lcfg.MaxDepth, gcfg.MaxDepth),
 		ScanTimeBudget:       budget,
 		GlobalArtifactBudget: globalBudget,
+		GitleaksConfig:       mergeGitleaksConfig(gcfg, lcfg),
 	}
 
 	// Friendly banner before scanning
