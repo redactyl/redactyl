@@ -179,7 +179,7 @@ func (bm *BinaryManager) Download(version string) (string, error) {
 	tmpPath := tmpFile.Name()
 	defer func() {
 		if removeErr := os.Remove(tmpPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			// best-effort cleanup; ignore further
+			fmt.Fprintf(os.Stderr, "warning: failed to remove temp gitleaks file %s: %v\n", tmpPath, removeErr)
 		}
 	}()
 
@@ -286,7 +286,7 @@ func (bm *BinaryManager) copyToLegacy(source string) error {
 	}
 	defer func() {
 		if closeErr := input.Close(); closeErr != nil {
-			// ignore close error during cleanup
+			fmt.Fprintf(os.Stderr, "warning: failed to close gitleaks source %s: %v\n", source, closeErr)
 		}
 	}()
 
@@ -296,7 +296,7 @@ func (bm *BinaryManager) copyToLegacy(source string) error {
 	}
 	defer func() {
 		if closeErr := output.Close(); closeErr != nil {
-			// ignore close error during cleanup
+			fmt.Fprintf(os.Stderr, "warning: failed to close gitleaks legacy target %s: %v\n", legacy, closeErr)
 		}
 	}()
 
