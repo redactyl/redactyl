@@ -71,6 +71,9 @@ type Scanner interface {
     // ScanWithContext scans with additional context (for virtual paths)
     ScanWithContext(ctx ScanContext, data []byte) ([]types.Finding, error)
 
+    // ScanBatch scans multiple inputs in a single invocation
+    ScanBatch(inputs []BatchInput) ([]types.Finding, error)
+
     // Version returns the scanner version
     Version() (string, error)
 }

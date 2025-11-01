@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
+)
+
+const (
+	githubLatestReleaseURL = "https://api.github.com/repos/gitleaks/gitleaks/releases/latest"
+	httpClientTimeout      = 10 * time.Second
+)
+
+var (
+	errBinaryNotFound  = errors.New("gitleaks binary not found")
+	errVersionMismatch = errors.New("gitleaks binary version mismatch")
 )
 
 // BinaryManager handles detection and installation of the Gitleaks binary.
@@ -21,171 +33,299 @@ type BinaryManager struct {
 }
 
 // NewBinaryManager creates a new binary manager.
-// customPath: optional explicit path to gitleaks binary
-// cachePath: directory to cache downloaded binaries (defaults to ~/.redactyl/bin)
 func NewBinaryManager(customPath string) *BinaryManager {
 	homeDir, _ := os.UserHomeDir()
 	cachePath := filepath.Join(homeDir, ".redactyl", "bin")
-
 	return &BinaryManager{
 		customPath: customPath,
 		cachePath:  cachePath,
 	}
 }
 
-// Find locates the Gitleaks binary using the following search order:
-// 1. Custom path (if provided)
-// 2. $PATH lookup
-// 3. Cached binary in ~/.redactyl/bin/gitleaks
-// Returns the path to the binary or an error if not found.
-func (bm *BinaryManager) Find() (string, error) {
-	// 1. Check custom path first
+// Find locates a Gitleaks binary honouring an expected version (when provided).
+// Search order:
+//  1. Custom path (if configured)
+//  2. $PATH
+//  3. Versioned cache (~/.redactyl/bin/gitleaks-<version>)
+//  4. Legacy cache (~/.redactyl/bin/gitleaks)
+func (bm *BinaryManager) Find(expectedVersion string) (string, error) {
+	normalized := normalizeVersion(expectedVersion)
+
 	if bm.customPath != "" {
 		if _, err := os.Stat(bm.customPath); err == nil {
+			if normalized != "" {
+				actual, err := bm.Version(bm.customPath)
+				if err != nil {
+					return "", fmt.Errorf("failed to check version for custom gitleaks binary %s: %w", bm.customPath, err)
+				}
+				if normalizeVersion(actual) != normalized {
+					return "", fmt.Errorf("%w: custom gitleaks binary %s reports %s (expected %s)", errVersionMismatch, bm.customPath, actual, normalized)
+				}
+			}
 			return bm.customPath, nil
 		}
 		return "", fmt.Errorf("custom gitleaks path not found: %s", bm.customPath)
 	}
 
-	// 2. Check $PATH
 	if path, err := exec.LookPath("gitleaks"); err == nil {
+		if normalized != "" {
+			actual, err := bm.Version(path)
+			if err != nil {
+				return "", fmt.Errorf("failed to determine gitleaks version from PATH (%s): %w", path, err)
+			}
+			if normalizeVersion(actual) != normalized {
+				return "", fmt.Errorf("%w: gitleaks on PATH (%s) reports %s (expected %s)", errVersionMismatch, path, actual, normalized)
+			}
+		}
 		return path, nil
 	}
 
-	// 3. Check cached binary
-	cachedPath := filepath.Join(bm.cachePath, "gitleaks")
-	if runtime.GOOS == "windows" {
-		cachedPath += ".exe"
-	}
-	if _, err := os.Stat(cachedPath); err == nil {
-		return cachedPath, nil
+	if normalized != "" {
+		versioned := bm.versionedPath(normalized)
+		if fileExists(versioned) {
+			actual, err := bm.Version(versioned)
+			if err != nil {
+				return "", fmt.Errorf("failed to determine cached gitleaks version (%s): %w", versioned, err)
+			}
+			if normalizeVersion(actual) != normalized {
+				return "", fmt.Errorf("%w: cached gitleaks %s reports %s (expected %s)", errVersionMismatch, versioned, actual, normalized)
+			}
+			return versioned, nil
+		}
 	}
 
-	return "", fmt.Errorf("gitleaks binary not found in PATH or cache (%s)", cachedPath)
+	legacy := bm.legacyCachePath()
+	if fileExists(legacy) {
+		if normalized != "" {
+			actual, err := bm.Version(legacy)
+			if err != nil {
+				return "", fmt.Errorf("failed to determine legacy cached gitleaks version (%s): %w", legacy, err)
+			}
+			if normalizeVersion(actual) != normalized {
+				return "", fmt.Errorf("%w: cached gitleaks %s reports %s (expected %s)", errVersionMismatch, legacy, actual, normalized)
+			}
+		}
+		return legacy, nil
+	}
+
+	searchPath := legacy
+	if normalized != "" {
+		searchPath = bm.versionedPath(normalized)
+	}
+	return "", fmt.Errorf("%w: searched cache path %s", errBinaryNotFound, searchPath)
 }
 
 // Version runs gitleaks --version and parses the output.
-// Returns the version string (e.g., "8.18.0") or an error.
 func (bm *BinaryManager) Version(binaryPath string) (string, error) {
-	cmd := exec.Command(binaryPath, "version")
+	cmd := exec.Command(binaryPath, "version") // #nosec G204
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get gitleaks version: %w", err)
 	}
 
-	// Parse version from output
-	// Expected format: "v8.18.0" or "8.18.0" or similar
 	version := strings.TrimSpace(string(output))
-	version = strings.TrimPrefix(version, "v")
 	version = strings.TrimPrefix(version, "version ")
-
-	// Take first line if multi-line
+	if len(version) > 0 && (version[0] == 'v' || version[0] == 'V') {
+		version = version[1:]
+	}
 	if lines := strings.Split(version, "\n"); len(lines) > 0 {
 		version = strings.TrimSpace(lines[0])
 	}
-
 	return version, nil
 }
 
-// Download downloads and installs the Gitleaks binary from GitHub releases.
-// version can be "latest" or a specific version like "8.18.0" or "v8.18.0".
-// The binary is installed to the cache directory (~/.redactyl/bin).
-func (bm *BinaryManager) Download(version string) error {
-	// Resolve version to download
-	downloadVersion := version
-	if version == "latest" || version == "" {
-		latestVer, err := getLatestVersion()
-		if err != nil {
-			return fmt.Errorf("failed to get latest gitleaks version: %w", err)
-		}
-		downloadVersion = latestVer
+// Download fetches the requested version (or latest) and stores it in the cache.
+func (bm *BinaryManager) Download(version string) (string, error) {
+	client := &http.Client{Timeout: httpClientTimeout}
+	normalized, withPrefix, err := bm.resolveVersion(version, client)
+	if err != nil {
+		return "", err
 	}
 
-	// Ensure version has 'v' prefix for GitHub releases
-	if !strings.HasPrefix(downloadVersion, "v") {
-		downloadVersion = "v" + downloadVersion
-	}
-
-	// Build download URL
 	platform := GetPlatform()
-	// Gitleaks uses version without 'v' in filename
-	versionNoV := strings.TrimPrefix(downloadVersion, "v")
+	versionNoPrefix := strings.TrimPrefix(withPrefix, "v")
 
 	var downloadURL string
 	var isZip bool
 	if runtime.GOOS == "windows" {
 		downloadURL = fmt.Sprintf("https://github.com/gitleaks/gitleaks/releases/download/%s/gitleaks_%s_%s.zip",
-			downloadVersion, versionNoV, platform)
+			withPrefix, versionNoPrefix, platform)
 		isZip = true
 	} else {
 		downloadURL = fmt.Sprintf("https://github.com/gitleaks/gitleaks/releases/download/%s/gitleaks_%s_%s.tar.gz",
-			downloadVersion, versionNoV, platform)
+			withPrefix, versionNoPrefix, platform)
 		isZip = false
 	}
 
-	// Create cache directory
-	if err := os.MkdirAll(bm.cachePath, 0755); err != nil {
-		return fmt.Errorf("failed to create cache directory: %w", err)
+	if err := os.MkdirAll(bm.cachePath, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
-	// Download archive
-	resp, err := http.Get(downloadURL)
+	resp, err := client.Get(downloadURL) // #nosec G107
 	if err != nil {
-		return fmt.Errorf("failed to download gitleaks: %w", err)
+		return "", fmt.Errorf("failed to download gitleaks from %s: %w", downloadURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download gitleaks: HTTP %d from %s", resp.StatusCode, downloadURL)
+		return "", fmt.Errorf("failed to download gitleaks: HTTP %d from %s", resp.StatusCode, downloadURL)
 	}
 
-	// Extract binary
-	binaryName := "gitleaks"
-	if runtime.GOOS == "windows" {
-		binaryName += ".exe"
+	destPath := bm.versionedPath(normalized)
+	tmpFile, err := os.CreateTemp(bm.cachePath, "gitleaks-download-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file for gitleaks download: %w", err)
 	}
-	destPath := filepath.Join(bm.cachePath, binaryName)
+	tmpPath := tmpFile.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	if isZip {
-		if err := extractFromZip(resp.Body, binaryName, destPath); err != nil {
-			return fmt.Errorf("failed to extract gitleaks: %w", err)
+		if err := extractFromZip(resp.Body, executableName(), tmpPath); err != nil {
+			return "", fmt.Errorf("failed to extract gitleaks: %w", err)
 		}
 	} else {
-		if err := extractFromTarGz(resp.Body, binaryName, destPath); err != nil {
-			return fmt.Errorf("failed to extract gitleaks: %w", err)
+		if err := extractFromTarGz(resp.Body, executableName(), tmpPath); err != nil {
+			return "", fmt.Errorf("failed to extract gitleaks: %w", err)
 		}
 	}
 
-	// Make executable on Unix-like systems
 	if runtime.GOOS != "windows" {
-		if err := os.Chmod(destPath, 0755); err != nil {
-			return fmt.Errorf("failed to make gitleaks executable: %w", err)
+		if err := os.Chmod(tmpPath, 0o755); err != nil {
+			return "", fmt.Errorf("failed to make gitleaks executable: %w", err)
 		}
 	}
 
-	return nil
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return "", fmt.Errorf("failed to move gitleaks into cache: %w", err)
+	}
+
+	actual, err := bm.Version(destPath)
+	if err != nil {
+		_ = os.Remove(destPath)
+		return "", fmt.Errorf("failed to verify downloaded gitleaks version: %w", err)
+	}
+	if normalizeVersion(actual) != normalized {
+		_ = os.Remove(destPath)
+		return "", fmt.Errorf("%w: downloaded binary reports %s (expected %s)", errVersionMismatch, actual, normalized)
+	}
+
+	if err := bm.copyToLegacy(destPath); err != nil {
+		return "", err
+	}
+
+	return destPath, nil
 }
 
 // GetPlatform returns the platform identifier for Gitleaks releases.
-// Examples: "darwin_x64", "linux_arm64", "windows_x64"
 func GetPlatform() string {
-	os := runtime.GOOS
+	osName := runtime.GOOS
 	arch := runtime.GOARCH
-
-	// Map Go arch names to Gitleaks release names
 	switch arch {
 	case "amd64":
 		arch = "x64"
 	case "386":
 		arch = "x32"
 	}
+	return fmt.Sprintf("%s_%s", osName, arch)
+}
 
-	return fmt.Sprintf("%s_%s", os, arch)
+func (bm *BinaryManager) resolveVersion(requested string, client *http.Client) (normalized string, withPrefix string, err error) {
+	req := strings.TrimSpace(requested)
+	if req == "" || strings.EqualFold(req, "latest") {
+		tag, err := getLatestVersion(client)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to resolve latest gitleaks version: %w", err)
+		}
+		normalized = normalizeVersion(tag)
+		withPrefix = "v" + normalized
+		return normalized, withPrefix, nil
+	}
+
+	normalized = normalizeVersion(req)
+	if normalized == "" {
+		return "", "", errors.New("invalid gitleaks version requested")
+	}
+	withPrefix = "v" + normalized
+	return normalized, withPrefix, nil
+}
+
+func (bm *BinaryManager) versionedPath(normalizedVersion string) string {
+	name := "gitleaks"
+	if normalizedVersion != "" {
+		name = fmt.Sprintf("gitleaks-%s", normalizedVersion)
+	}
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(bm.cachePath, name)
+}
+
+func (bm *BinaryManager) legacyCachePath() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(bm.cachePath, "gitleaks.exe")
+	}
+	return filepath.Join(bm.cachePath, "gitleaks")
+}
+
+func (bm *BinaryManager) copyToLegacy(source string) error {
+	legacy := bm.legacyCachePath()
+	if legacy == source {
+		return nil
+	}
+	input, err := os.Open(source)
+	if err != nil {
+		return fmt.Errorf("failed to open gitleaks binary for copying: %w", err)
+	}
+	defer input.Close()
+
+	output, err := os.Create(legacy)
+	if err != nil {
+		return fmt.Errorf("failed to create legacy gitleaks binary: %w", err)
+	}
+	defer func() { _ = output.Close() }()
+
+	if _, err := io.Copy(output, input); err != nil {
+		return fmt.Errorf("failed to copy gitleaks binary: %w", err)
+	}
+
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(legacy, 0o755); err != nil {
+			return fmt.Errorf("failed to set permissions on legacy gitleaks: %w", err)
+		}
+	}
+	return nil
+}
+
+func executableName() string {
+	if runtime.GOOS == "windows" {
+		return "gitleaks.exe"
+	}
+	return "gitleaks"
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func normalizeVersion(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	if v[0] == 'v' || v[0] == 'V' {
+		v = v[1:]
+	}
+	return v
 }
 
 // getLatestVersion fetches the latest release version from GitHub API.
-func getLatestVersion() (string, error) {
-	resp, err := http.Get("https://api.github.com/repos/gitleaks/gitleaks/releases/latest")
+func getLatestVersion(client *http.Client) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, githubLatestReleaseURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -195,19 +335,17 @@ func getLatestVersion() (string, error) {
 		return "", fmt.Errorf("GitHub API returned HTTP %d", resp.StatusCode)
 	}
 
-	// Parse JSON to extract tag_name
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
 
-	// Simple JSON parsing - look for "tag_name":"vX.Y.Z"
-	tagNamePrefix := `"tag_name":"`
-	start := strings.Index(string(body), tagNamePrefix)
+	const tagPrefix = `"tag_name":"`
+	start := strings.Index(string(body), tagPrefix)
 	if start == -1 {
 		return "", fmt.Errorf("could not find tag_name in GitHub response")
 	}
-	start += len(tagNamePrefix)
+	start += len(tagPrefix)
 	end := strings.Index(string(body[start:]), `"`)
 	if end == -1 {
 		return "", fmt.Errorf("malformed tag_name in GitHub response")
@@ -222,7 +360,7 @@ func extractFromTarGz(r io.Reader, filename, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer gzr.Close() //nolint:errcheck // Best effort cleanup on function exit
+	defer gzr.Close() //nolint:errcheck
 
 	tr := tar.NewReader(gzr)
 	for {
@@ -234,13 +372,12 @@ func extractFromTarGz(r io.Reader, filename, destPath string) error {
 			return err
 		}
 
-		// Look for the gitleaks binary (could be in root or subdirectory)
 		if strings.HasSuffix(header.Name, filename) {
 			outFile, err := os.Create(destPath)
 			if err != nil {
 				return err
 			}
-			defer outFile.Close() //nolint:errcheck // Best effort cleanup on function exit
+			defer outFile.Close() //nolint:errcheck
 
 			if _, err := io.Copy(outFile, tr); err != nil {
 				return err
@@ -254,31 +391,29 @@ func extractFromTarGz(r io.Reader, filename, destPath string) error {
 
 // extractFromZip extracts a single file from a zip archive.
 func extractFromZip(r io.Reader, filename, destPath string) error {
-	// Read entire archive into memory (zip requires ReaderAt)
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}
 
-	zr, err := zip.NewReader(&bytesReaderAt{data}, int64(len(data)))
+	zr, err := zip.NewReader(&bytesReaderAt{data: data}, int64(len(data)))
 	if err != nil {
 		return err
 	}
 
 	for _, f := range zr.File {
-		// Look for the gitleaks binary (could be in root or subdirectory)
 		if strings.HasSuffix(f.Name, filename) {
 			rc, err := f.Open()
 			if err != nil {
 				return err
 			}
-			defer rc.Close() //nolint:errcheck // Best effort cleanup on function exit
+			defer rc.Close() //nolint:errcheck
 
 			outFile, err := os.Create(destPath)
 			if err != nil {
 				return err
 			}
-			defer outFile.Close() //nolint:errcheck // Best effort cleanup on function exit
+			defer outFile.Close() //nolint:errcheck
 
 			if _, err := io.Copy(outFile, rc); err != nil {
 				return err
@@ -290,7 +425,6 @@ func extractFromZip(r io.Reader, filename, destPath string) error {
 	return fmt.Errorf("file %s not found in archive", filename)
 }
 
-// bytesReaderAt implements io.ReaderAt for a byte slice.
 type bytesReaderAt struct {
 	data []byte
 }

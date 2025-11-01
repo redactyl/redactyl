@@ -14,6 +14,11 @@ type Scanner interface {
 	// the full chain (e.g., "archive.zip::inner.tar::file.txt").
 	ScanWithContext(ctx ScanContext, data []byte) ([]types.Finding, error)
 
+	// ScanBatch scans multiple inputs in a single invocation. Implementations
+	// should process all inputs in one subprocess execution when possible to
+	// reduce overhead and return aggregated findings.
+	ScanBatch(inputs []BatchInput) ([]types.Finding, error)
+
 	// Version returns the scanner version information.
 	Version() (string, error)
 }
@@ -42,3 +47,10 @@ type ScanContext struct {
 
 // VirtualPathSeparator is used to delimit components in virtual paths.
 const VirtualPathSeparator = "::"
+
+// BatchInput represents a single unit of work for batch scanning.
+type BatchInput struct {
+	Path    string
+	Data    []byte
+	Context ScanContext
+}

@@ -1,6 +1,6 @@
 BINARY := redactyl
 
-.PHONY: build run install test lint fmt clean
+.PHONY: build run install test lint fmt clean bench
 
 build:
 	go build -o bin/$(BINARY) .
@@ -19,6 +19,10 @@ fmt:
 
 lint:
 	go vet ./...
+
+bench:
+	go test -run ^$$ -bench=. -benchmem ./internal/artifacts
+	go test -run ^$$ -bench=. -benchmem ./internal/engine
 
 clean:
 	rm -f bin/$(BINARY)
