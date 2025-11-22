@@ -166,10 +166,10 @@ func Scan(cfg Config) ([]types.Finding, error) {
 
 // Result contains findings and basic scan statistics.
 type Result struct {
-	Findings      []types.Finding
-	FilesScanned  int
-	Duration      time.Duration
-	ArtifactStats DeepStats
+	Findings       []types.Finding
+	FilesScanned   int
+	Duration       time.Duration
+	ArtifactStats  DeepStats
 	ArtifactErrors []error
 }
 
@@ -464,7 +464,7 @@ func scanArtifacts(cfg Config, scnr scanner.Scanner, emit func([]types.Finding),
 	// Reuse include/exclude globs to filter which artifact filenames are processed
 	allowArtifact := func(rel string) bool { return allowedByGlobs(rel, cfg) }
 	var artStats artifacts.Stats
-	
+
 	if cfg.ScanArchives {
 		if err := artifacts.ScanArchivesWithStats(cfg.Root, lim, allowArtifact, emitArtifact, &artStats); err != nil {
 			result.ArtifactErrors = append(result.ArtifactErrors, err)
