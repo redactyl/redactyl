@@ -15,6 +15,24 @@ Interactive Terminal User Interface for reviewing, filtering, and remediating sc
 | `g` / `G` | Jump to first / last row |
 | `PgUp` / `PgDown` | Full page up / down |
 | `Home` / `End` | Jump to first / last row |
+| `n` / `N` | Jump to next / previous HIGH finding |
+
+### Search & Filter
+| Key | Action |
+|-----|--------|
+| `/` | Search findings by path, detector, or match text |
+| `1` / `2` / `3` | Filter by HIGH / MED / LOW severity |
+| `s` | Sort: cycle through severity, path, detector |
+| `S` | Reverse current sort order |
+| `Esc` | Clear all filters |
+
+### Selection & Bulk Operations
+| Key | Action |
+|-----|--------|
+| `v` | Toggle selection on current finding |
+| `V` | Select / deselect all visible findings |
+| `B` | Bulk baseline all selected findings |
+| `Ctrl+i` | Bulk ignore all selected files |
 
 ### Actions
 | Key | Action |
@@ -53,24 +71,6 @@ Interactive Terminal User Interface for reviewing, filtering, and remediating sc
 ---
 
 ## Planned Features (TODO)
-
-### Phase 5: Search & Filter
-- [ ] **Search** (`/`): Filter findings by path, detector, or match text
-- [ ] **Severity Filter** (`1`/`2`/`3`): Show only High/Med/Low findings
-- [ ] **Jump to Severity** (`n`/`N`): Jump to next/previous HIGH finding
-- [ ] **Clear Filter** (`Esc`): Reset to show all findings
-
-### Phase 6: Sorting
-- [ ] **Sort Toggle** (`s`): Cycle sort order (severity, path, detector)
-- [ ] **Reverse Sort** (`S`): Reverse current sort order
-- [ ] Visual indicator showing current sort column
-
-### Phase 7: Bulk Operations
-- [ ] **Select Mode** (`v`): Toggle selection on current finding
-- [ ] **Select All** (`V`): Select/deselect all visible findings
-- [ ] **Bulk Baseline** (`B`): Baseline all selected findings
-- [ ] **Bulk Ignore** (`Ctrl+i`): Ignore all selected files
-- [ ] Selection count in status bar
 
 ### Phase 8: Export & Clipboard
 - [ ] **Export** (`e`): Export current view to JSON/SARIF/CSV

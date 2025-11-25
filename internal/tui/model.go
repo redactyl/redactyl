@@ -2,11 +2,13 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -108,6 +110,8 @@ type Model struct {
 	viewport         viewport.Model
 	spinner          spinner.Model
 	findings         []types.Finding
+	filteredFindings []types.Finding                 // Findings after filter applied (nil = no filter)
+	filteredIndices  []int                           // Maps filtered index to original findings index
 	baselinedSet     map[string]bool                 // Keys of baselined findings
 	quitting         bool
 	ready            bool       // Indicates if terminal dimensions are known
@@ -128,7 +132,28 @@ type Model struct {
 	rescanFunc       func() ([]types.Finding, error) // Callback to re-run scan
 	showEmpty        bool                            // True if no findings were found
 	showHelp         bool                            // True when help overlay is shown
+
+	// Search & Filter state
+	searchMode       bool              // True when search input is active
+	searchInput      textinput.Model   // Text input for search
+	searchQuery      string            // Current active search query
+	severityFilter   types.Severity    // Filter by severity ("" = no filter)
+
+	// Sort state
+	sortColumn       string            // Current sort column: "severity", "path", "detector", "" (default)
+	sortReverse      bool              // True if sort is reversed
+
+	// Selection state (for bulk operations)
+	selectedFindings map[int]bool      // Set of selected finding indices (in original findings)
 }
+
+// SortColumn constants
+const (
+	SortDefault  = ""
+	SortSeverity = "severity"
+	SortPath     = "path"
+	SortDetector = "detector"
+)
 
 // NewModel initializes a new TUI model.
 func NewModel(findings []types.Finding, rescanFunc func() ([]types.Finding, error)) Model {
@@ -186,22 +211,33 @@ func NewModel(findings []types.Finding, rescanFunc func() ([]types.Finding, erro
 	sp.Spinner = spinner.Line
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 
+	// Initialize search input
+	ti := textinput.New()
+	ti.Placeholder = "Search path, detector, or match..."
+	ti.CharLimit = 100
+	ti.Width = 50
+	ti.Prompt = "/ "
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	ti.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+
 	// Initialize main model
 	m := Model{
-		table:           t,
-		spinner:         sp,
-		findings:        findings,
-		rescanFunc:      rescanFunc,
-		showEmpty:       len(findings) == 0,
-		initialScanDone: len(findings) > 0, // If we have findings, this wasn't the first ever scan
-		hasScannedOnce:  true,              // We've already completed the initial scan to get here
-		lastScanTime:    time.Now(),        // Set scan time to now
+		table:            t,
+		spinner:          sp,
+		findings:         findings,
+		rescanFunc:       rescanFunc,
+		showEmpty:        len(findings) == 0,
+		initialScanDone:  len(findings) > 0, // If we have findings, this wasn't the first ever scan
+		hasScannedOnce:   true,              // We've already completed the initial scan to get here
+		lastScanTime:     time.Now(),        // Set scan time to now
+		searchInput:      ti,
+		selectedFindings: make(map[int]bool),
 	}
 
 	if m.showEmpty {
 		m.statusMessage = "q: quit | r: rescan | a: audit log"
 	} else {
-		m.statusMessage = "q: quit | ?: help | j/k: navigate | o: open | i: ignore | b: baseline | a: audit log"
+		m.statusMessage = "q: quit | ?: help | j/k: navigate | o: open | r: rescan | i: ignore | b: baseline"
 	}
 
 	// Viewport will be initialized in the first WindowSizeMsg
@@ -281,16 +317,292 @@ func (m *Model) rescan() tea.Cmd {
 // findingsMsg is a custom message type sent when new findings are available.
 type findingsMsg []types.Finding
 
+// applyFilters applies search query and severity filter to findings
+func (m *Model) applyFilters() {
+	// Check if any filters are active
+	hasSearchFilter := m.searchQuery != ""
+	hasSeverityFilter := m.severityFilter != ""
+
+	if !hasSearchFilter && !hasSeverityFilter {
+		// No filters - clear filtered state
+		m.filteredFindings = nil
+		m.filteredIndices = nil
+		m.rebuildTableRows()
+		return
+	}
+
+	// Apply filters
+	var filtered []types.Finding
+	var indices []int
+	query := strings.ToLower(m.searchQuery)
+
+	for i, f := range m.findings {
+		// Check severity filter
+		if hasSeverityFilter && f.Severity != m.severityFilter {
+			continue
+		}
+
+		// Check search filter (case-insensitive match on path, detector, or match)
+		if hasSearchFilter {
+			pathMatch := strings.Contains(strings.ToLower(f.Path), query)
+			detectorMatch := strings.Contains(strings.ToLower(f.Detector), query)
+			matchMatch := strings.Contains(strings.ToLower(f.Match), query)
+			if !pathMatch && !detectorMatch && !matchMatch {
+				continue
+			}
+		}
+
+		filtered = append(filtered, f)
+		indices = append(indices, i)
+	}
+
+	m.filteredFindings = filtered
+	m.filteredIndices = indices
+	m.rebuildTableRows()
+}
+
+// clearFilters removes all active filters
+func (m *Model) clearFilters() {
+	m.searchQuery = ""
+	m.severityFilter = ""
+	m.filteredFindings = nil
+	m.filteredIndices = nil
+	m.rebuildTableRows()
+}
+
+// rebuildTableRows updates the table with current (filtered or all) findings
+func (m *Model) rebuildTableRows() {
+	findings := m.getDisplayFindings()
+	rows := make([]table.Row, len(findings))
+	for i, f := range findings {
+		// Build severity text with selection and baseline indicators
+		sev := severityText(f.Severity)
+
+		// Add baseline indicator
+		if isBaselined(f, m.baselinedSet) {
+			sev = "(b) " + sev
+		}
+
+		// Add selection indicator (use [x] for selected, [ ] for not selected if any are selected)
+		origIdx := m.getOriginalIndex(i)
+		if len(m.selectedFindings) > 0 {
+			if m.selectedFindings[origIdx] {
+				sev = "[x] " + sev
+			} else {
+				sev = "[ ] " + sev
+			}
+		}
+
+		rows[i] = table.Row{
+			sev,
+			f.Detector,
+			f.Path,
+			f.Match,
+		}
+	}
+	m.table.SetRows(rows)
+	m.table.SetCursor(0)
+	m.showEmpty = len(findings) == 0
+	m.updateViewportContent()
+}
+
+// getDisplayFindings returns filtered findings if filter is active, otherwise all findings
+func (m *Model) getDisplayFindings() []types.Finding {
+	if m.filteredFindings != nil {
+		return m.filteredFindings
+	}
+	return m.findings
+}
+
+// getOriginalIndex maps a display index to the original findings index
+func (m *Model) getOriginalIndex(displayIdx int) int {
+	if m.filteredIndices != nil {
+		if displayIdx >= 0 && displayIdx < len(m.filteredIndices) {
+			return m.filteredIndices[displayIdx]
+		}
+		return -1
+	}
+	return displayIdx
+}
+
+// jumpToNextSeverity jumps to the next finding with the given severity
+// direction: 1 for forward, -1 for backward
+// returns true if a match was found
+func (m *Model) jumpToNextSeverity(severity types.Severity, direction int) bool {
+	displayFindings := m.getDisplayFindings()
+	if len(displayFindings) == 0 {
+		return false
+	}
+
+	current := m.table.Cursor()
+	n := len(displayFindings)
+
+	// Search in the given direction, wrapping around
+	for i := 1; i <= n; i++ {
+		idx := (current + direction*i + n) % n
+		if displayFindings[idx].Severity == severity {
+			m.table.SetCursor(idx)
+			return true
+		}
+	}
+	return false
+}
+
+// severityRank returns a numeric rank for sorting (HIGH=0, MED=1, LOW=2)
+func severityRank(s types.Severity) int {
+	switch s {
+	case types.SevHigh:
+		return 0
+	case types.SevMed:
+		return 1
+	case types.SevLow:
+		return 2
+	default:
+		return 3
+	}
+}
+
+// cycleSortColumn advances to the next sort column
+func (m *Model) cycleSortColumn() {
+	switch m.sortColumn {
+	case SortDefault:
+		m.sortColumn = SortSeverity
+	case SortSeverity:
+		m.sortColumn = SortPath
+	case SortPath:
+		m.sortColumn = SortDetector
+	case SortDetector:
+		m.sortColumn = SortDefault
+	}
+	m.sortReverse = false // Reset reverse when changing column
+	m.sortFindings()
+}
+
+// toggleSortReverse reverses the current sort order
+func (m *Model) toggleSortReverse() {
+	m.sortReverse = !m.sortReverse
+	m.sortFindings()
+}
+
+// sortFindings sorts m.findings according to current sort settings
+func (m *Model) sortFindings() {
+	if m.sortColumn == SortDefault {
+		// Default order - no sorting needed, but we need to rebuild
+		m.rebuildTableRows()
+		return
+	}
+
+	// Create a stable sort
+	sort.SliceStable(m.findings, func(i, j int) bool {
+		var less bool
+		switch m.sortColumn {
+		case SortSeverity:
+			less = severityRank(m.findings[i].Severity) < severityRank(m.findings[j].Severity)
+		case SortPath:
+			less = strings.ToLower(m.findings[i].Path) < strings.ToLower(m.findings[j].Path)
+		case SortDetector:
+			less = strings.ToLower(m.findings[i].Detector) < strings.ToLower(m.findings[j].Detector)
+		default:
+			return false
+		}
+		if m.sortReverse {
+			return !less
+		}
+		return less
+	})
+
+	// Re-apply filters after sorting (this will rebuild table rows)
+	m.applyFilters()
+}
+
+// getSortIndicator returns a visual indicator for the current sort state
+func (m *Model) getSortIndicator() string {
+	if m.sortColumn == SortDefault {
+		return ""
+	}
+	arrow := "^" // Ascending
+	if m.sortReverse {
+		arrow = "v" // Descending
+	}
+	return fmt.Sprintf(" [%s %s]", m.sortColumn, arrow)
+}
+
+// toggleSelection toggles selection on the currently displayed finding
+func (m *Model) toggleSelection() {
+	idx := m.table.Cursor()
+	origIdx := m.getOriginalIndex(idx)
+	if origIdx < 0 {
+		return
+	}
+	if m.selectedFindings[origIdx] {
+		delete(m.selectedFindings, origIdx)
+	} else {
+		m.selectedFindings[origIdx] = true
+	}
+	m.rebuildTableRows()
+	// Restore cursor position
+	m.table.SetCursor(idx)
+}
+
+// selectAll selects all visible (filtered) findings
+func (m *Model) selectAll() {
+	displayFindings := m.getDisplayFindings()
+	for i := range displayFindings {
+		origIdx := m.getOriginalIndex(i)
+		if origIdx >= 0 {
+			m.selectedFindings[origIdx] = true
+		}
+	}
+	m.rebuildTableRows()
+}
+
+// deselectAll deselects all findings
+func (m *Model) deselectAll() {
+	m.selectedFindings = make(map[int]bool)
+	m.rebuildTableRows()
+}
+
+// toggleSelectAll either selects all or deselects all based on current state
+func (m *Model) toggleSelectAll() {
+	displayFindings := m.getDisplayFindings()
+	// Check if all visible are selected
+	allSelected := true
+	for i := range displayFindings {
+		origIdx := m.getOriginalIndex(i)
+		if origIdx >= 0 && !m.selectedFindings[origIdx] {
+			allSelected = false
+			break
+		}
+	}
+	if allSelected {
+		m.deselectAll()
+	} else {
+		m.selectAll()
+	}
+}
+
+// getSelectedCount returns the number of selected findings
+func (m *Model) getSelectedCount() int {
+	return len(m.selectedFindings)
+}
+
+// isSelected checks if a finding at display index is selected
+func (m *Model) isSelected(displayIdx int) bool {
+	origIdx := m.getOriginalIndex(displayIdx)
+	return origIdx >= 0 && m.selectedFindings[origIdx]
+}
+
 // updateViewportContent updates the detail view with the currently selected finding.
 func (m *Model) updateViewportContent() {
-	if len(m.findings) == 0 || !m.ready {
+	displayFindings := m.getDisplayFindings()
+	if len(displayFindings) == 0 || !m.ready {
 		m.viewport.SetContent("")
 		return
 	}
 
 	idx := m.table.Cursor()
-	if idx >= 0 && idx < len(m.findings) {
-		f := m.findings[idx]
+	if idx >= 0 && idx < len(displayFindings) {
+		f := displayFindings[idx]
 
 		var b strings.Builder
 		b.WriteString(fmt.Sprintf("%s\n\n", titleStyle.Render("Finding Details")))
@@ -420,10 +732,169 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// If search mode is active, handle text input
+		if m.searchMode {
+			switch msg.String() {
+			case "enter":
+				// Execute search
+				m.searchQuery = m.searchInput.Value()
+				m.searchMode = false
+				m.searchInput.Blur()
+				m.applyFilters()
+				if m.searchQuery != "" {
+					displayFindings := m.getDisplayFindings()
+					timeout := time.Now().Add(3 * time.Second)
+					m.statusTimeout = &timeout
+					m.statusMessage = fmt.Sprintf("Found %d matches for '%s' (Esc to clear)", len(displayFindings), m.searchQuery)
+				}
+				return m, nil
+			case "esc":
+				// Cancel search
+				m.searchMode = false
+				m.searchInput.Blur()
+				m.searchInput.SetValue(m.searchQuery) // Restore previous query
+				return m, nil
+			default:
+				// Forward to text input
+				m.searchInput, cmd = m.searchInput.Update(msg)
+				return m, cmd
+			}
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
+		case "/": // Enter search mode
+			if !m.showEmpty || len(m.findings) > 0 {
+				m.searchMode = true
+				m.searchInput.SetValue(m.searchQuery) // Start with current query
+				m.searchInput.Focus()
+				return m, textinput.Blink
+			}
+		case "1": // Filter to HIGH severity
+			m.severityFilter = types.SevHigh
+			m.applyFilters()
+			timeout := time.Now().Add(3 * time.Second)
+			m.statusTimeout = &timeout
+			m.statusMessage = "Showing HIGH severity only (Esc to clear)"
+			return m, nil
+		case "2": // Filter to MED severity
+			m.severityFilter = types.SevMed
+			m.applyFilters()
+			timeout := time.Now().Add(3 * time.Second)
+			m.statusTimeout = &timeout
+			m.statusMessage = "Showing MED severity only (Esc to clear)"
+			return m, nil
+		case "3": // Filter to LOW severity
+			m.severityFilter = types.SevLow
+			m.applyFilters()
+			timeout := time.Now().Add(3 * time.Second)
+			m.statusTimeout = &timeout
+			m.statusMessage = "Showing LOW severity only (Esc to clear)"
+			return m, nil
+		case "esc": // Clear filters
+			if m.searchQuery != "" || m.severityFilter != "" {
+				m.clearFilters()
+				timeout := time.Now().Add(3 * time.Second)
+				m.statusTimeout = &timeout
+				m.statusMessage = "Filters cleared"
+				return m, nil
+			}
+		case "n": // Jump to next HIGH severity finding
+			if !m.showEmpty {
+				if m.jumpToNextSeverity(types.SevHigh, 1) {
+					m.updateViewportContent()
+				} else {
+					timeout := time.Now().Add(2 * time.Second)
+					m.statusTimeout = &timeout
+					m.statusMessage = "No more HIGH findings"
+				}
+				return m, nil
+			}
+		case "N": // Jump to previous HIGH severity finding
+			if !m.showEmpty {
+				if m.jumpToNextSeverity(types.SevHigh, -1) {
+					m.updateViewportContent()
+				} else {
+					timeout := time.Now().Add(2 * time.Second)
+					m.statusTimeout = &timeout
+					m.statusMessage = "No more HIGH findings"
+				}
+				return m, nil
+			}
+		case "s": // Cycle sort column
+			if len(m.findings) > 0 {
+				m.cycleSortColumn()
+				timeout := time.Now().Add(3 * time.Second)
+				m.statusTimeout = &timeout
+				if m.sortColumn == SortDefault {
+					m.statusMessage = "Sort: default order"
+				} else {
+					m.statusMessage = fmt.Sprintf("Sort by %s (S to reverse)", m.sortColumn)
+				}
+				return m, nil
+			}
+		case "S": // Reverse sort
+			if len(m.findings) > 0 && m.sortColumn != SortDefault {
+				m.toggleSortReverse()
+				timeout := time.Now().Add(3 * time.Second)
+				m.statusTimeout = &timeout
+				direction := "ascending"
+				if m.sortReverse {
+					direction = "descending"
+				}
+				m.statusMessage = fmt.Sprintf("Sort by %s (%s)", m.sortColumn, direction)
+				return m, nil
+			}
+		case "v": // Toggle selection on current finding
+			if !m.showEmpty {
+				m.toggleSelection()
+				timeout := time.Now().Add(2 * time.Second)
+				m.statusTimeout = &timeout
+				count := m.getSelectedCount()
+				if count == 0 {
+					m.statusMessage = "Selection cleared"
+				} else {
+					m.statusMessage = fmt.Sprintf("%d selected (V: all, B: baseline, Ctrl+i: ignore)", count)
+				}
+				return m, nil
+			}
+		case "V": // Select/deselect all visible findings
+			if !m.showEmpty {
+				m.toggleSelectAll()
+				timeout := time.Now().Add(2 * time.Second)
+				m.statusTimeout = &timeout
+				count := m.getSelectedCount()
+				if count == 0 {
+					m.statusMessage = "All deselected"
+				} else {
+					m.statusMessage = fmt.Sprintf("All %d selected (B: baseline, Ctrl+i: ignore)", count)
+				}
+				return m, nil
+			}
+		case "B": // Bulk baseline selected findings
+			if len(m.selectedFindings) > 0 {
+				cmd := m.bulkBaseline()
+				m.rebuildTableRows()
+				return m, cmd
+			} else {
+				timeout := time.Now().Add(2 * time.Second)
+				m.statusTimeout = &timeout
+				m.statusMessage = "No findings selected (press v to select)"
+				return m, nil
+			}
+		case "ctrl+i": // Bulk ignore selected files
+			if len(m.selectedFindings) > 0 {
+				cmd := m.bulkIgnore()
+				m.rebuildTableRows()
+				return m, cmd
+			} else {
+				timeout := time.Now().Add(2 * time.Second)
+				m.statusTimeout = &timeout
+				m.statusMessage = "No findings selected (press v to select)"
+				return m, nil
+			}
 		case "o", "enter":
 			if !m.showEmpty {
 				return m, m.openEditor()
@@ -640,7 +1111,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.showEmpty {
 				m.statusMessage = "q: quit | r: rescan"
 			} else {
-				m.statusMessage = "q: quit | ?: help | j/k: navigate | o: open | i: ignore | b: baseline"
+				m.statusMessage = "q: quit | ?: help | j/k: navigate | o: open | r: rescan | i: ignore | b: baseline"
 			}
 		}
 		return m, spinCmd
@@ -690,9 +1161,10 @@ func (m Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, popupBox)
 	}
 
-	// Calculate stats
+	// Calculate stats from display findings (respects filters)
+	displayFindings := m.getDisplayFindings()
 	var highCount, medCount, lowCount int
-	for _, f := range m.findings {
+	for _, f := range displayFindings {
 		switch f.Severity {
 		case types.SevHigh:
 			highCount++
@@ -713,17 +1185,58 @@ func (m Model) View() string {
 			statsContent = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("[OK] No secrets detected")
 		}
 	} else {
-		// Show counts
-		statsContent = fmt.Sprintf(
-			"Total: %-4d  |  %s %-4d  |  %s %-4d  |  %s %-4d",
-			len(m.findings),
-			sevHighStyle.Render("High:"),
-			highCount,
-			sevMedStyle.Render("Med:"),
-			medCount,
-			sevLowStyle.Render("Low:"),
-			lowCount,
-		)
+		// Build filter indicator
+		var filterInfo string
+		if m.searchQuery != "" || m.severityFilter != "" {
+			var parts []string
+			if m.searchQuery != "" {
+				parts = append(parts, fmt.Sprintf("search:'%s'", m.searchQuery))
+			}
+			if m.severityFilter != "" {
+				parts = append(parts, fmt.Sprintf("sev:%s", severityText(m.severityFilter)))
+			}
+			filterInfo = fmt.Sprintf("  [FILTER: %s]", strings.Join(parts, ", "))
+		}
+
+		// Build sort indicator
+		sortInfo := m.getSortIndicator()
+
+		// Build selection indicator
+		var selectionInfo string
+		if len(m.selectedFindings) > 0 {
+			selectionInfo = fmt.Sprintf("  [%d selected]", len(m.selectedFindings))
+		}
+
+		// Show counts - use filtered count if filter active
+		if m.filteredFindings != nil {
+			statsContent = fmt.Sprintf(
+				"Showing: %d/%d  |  %s %-4d  |  %s %-4d  |  %s %-4d%s%s%s",
+				len(displayFindings),
+				len(m.findings),
+				sevHighStyle.Render("High:"),
+				highCount,
+				sevMedStyle.Render("Med:"),
+				medCount,
+				sevLowStyle.Render("Low:"),
+				lowCount,
+				filterInfo,
+				sortInfo,
+				selectionInfo,
+			)
+		} else {
+			statsContent = fmt.Sprintf(
+				"Total: %-4d  |  %s %-4d  |  %s %-4d  |  %s %-4d%s%s",
+				len(m.findings),
+				sevHighStyle.Render("High:"),
+				highCount,
+				sevMedStyle.Render("Med:"),
+				medCount,
+				sevLowStyle.Render("Low:"),
+				lowCount,
+				sortInfo,
+				selectionInfo,
+			)
+		}
 	}
 
 	statsHeader := lipgloss.NewStyle().
@@ -739,10 +1252,16 @@ func (m Model) View() string {
 		Height(m.table.Height()).
 		Render(m.table.View())
 
-	// Detail pane - show message if no findings
+	// Detail pane - show message if no findings (or no matches after filter)
 	var detailContent string
-	if len(m.findings) == 0 {
-		emptyMsg := "No secrets to review.\n\nPress 'r' to rescan\nPress '?' for help"
+	if len(displayFindings) == 0 {
+		var emptyMsg string
+		if len(m.findings) == 0 {
+			emptyMsg = "No secrets to review.\n\nPress 'r' to rescan\nPress '?' for help"
+		} else {
+			// Filtering resulted in no matches
+			emptyMsg = "No findings match filter.\n\nPress 'Esc' to clear filter"
+		}
 		detailContent = lipgloss.Place(
 			m.width,
 			m.viewport.Height,
@@ -791,12 +1310,35 @@ func (m Model) View() string {
 		Padding(0, 2).
 		Render(statusContent)
 
-	mainView := lipgloss.JoinVertical(lipgloss.Left,
-		statsHeader,
-		tableRender,
-		detailRender,
-		statusRender,
-	)
+	// Build search bar if in search mode
+	var searchBar string
+	if m.searchMode {
+		searchBarStyle := lipgloss.NewStyle().
+			Background(lipgloss.Color("235")).
+			Foreground(lipgloss.Color("15")).
+			Width(m.width).
+			Padding(0, 2)
+		searchBar = searchBarStyle.Render(m.searchInput.View())
+	}
+
+	// Build main view
+	var mainView string
+	if m.searchMode {
+		mainView = lipgloss.JoinVertical(lipgloss.Left,
+			statsHeader,
+			searchBar,
+			tableRender,
+			detailRender,
+			statusRender,
+		)
+	} else {
+		mainView = lipgloss.JoinVertical(lipgloss.Left,
+			statsHeader,
+			tableRender,
+			detailRender,
+			statusRender,
+		)
+	}
 
 	// Show help overlay if requested
 	if m.showHelp {
@@ -836,6 +1378,22 @@ func (m Model) View() string {
 		lines = append(lines, formatRow("Ctrl+d/u", "Half-page down / up"))
 		lines = append(lines, formatRow("Ctrl+f/b", "Full page down / up"))
 		lines = append(lines, formatRow("g / G", "First / last row"))
+		lines = append(lines, formatRow("n / N", "Next / prev HIGH finding"))
+		lines = append(lines, "")
+
+		// Search & Filter
+		lines = append(lines, sectionStyle.Render("Search & Filter"))
+		lines = append(lines, formatRow("/", "Search findings"))
+		lines = append(lines, formatRow("1 / 2 / 3", "Filter HIGH / MED / LOW"))
+		lines = append(lines, formatRow("s / S", "Sort / reverse sort"))
+		lines = append(lines, formatRow("Esc", "Clear filters"))
+		lines = append(lines, "")
+
+		// Selection & Bulk
+		lines = append(lines, sectionStyle.Render("Selection & Bulk"))
+		lines = append(lines, formatRow("v / V", "Select one / select all"))
+		lines = append(lines, formatRow("B", "Bulk baseline selected"))
+		lines = append(lines, formatRow("Ctrl+i", "Bulk ignore selected"))
 		lines = append(lines, "")
 
 		// Actions

@@ -247,10 +247,91 @@ func (m Model) openAuditLog() tea.Cmd {
 
 func (m Model) getSelectedFinding() *types.Finding {
 	idx := m.table.Cursor()
-	if idx >= 0 && idx < len(m.findings) {
-		return &m.findings[idx]
+	displayFindings := m.getDisplayFindings()
+	if idx >= 0 && idx < len(displayFindings) {
+		// Return pointer to the actual finding (from filtered or all)
+		return &displayFindings[idx]
 	}
 	return nil
+}
+
+// getSelectedOriginalIndex returns the index in m.findings for the currently selected item
+func (m Model) getSelectedOriginalIndex() int {
+	return m.getOriginalIndex(m.table.Cursor())
+}
+
+// bulkBaseline adds all selected findings to baseline
+func (m *Model) bulkBaseline() tea.Cmd {
+	if len(m.selectedFindings) == 0 {
+		return func() tea.Msg { return statusMsg("No findings selected") }
+	}
+
+	// Load existing baseline
+	base, err := report.LoadBaseline("redactyl.baseline.json")
+	if err != nil {
+		base = report.Baseline{Items: map[string]bool{}}
+	}
+
+	// Add all selected findings
+	count := 0
+	for origIdx := range m.selectedFindings {
+		if origIdx >= 0 && origIdx < len(m.findings) {
+			f := m.findings[origIdx]
+			key := f.Path + "|" + f.Detector + "|" + f.Match
+			if !base.Items[key] {
+				base.Items[key] = true
+				count++
+			}
+		}
+	}
+
+	// Save baseline
+	buf, err := json.MarshalIndent(base, "", "  ")
+	if err != nil {
+		return func() tea.Msg { return statusMsg(fmt.Sprintf("Error marshalling baseline: %v", err)) }
+	}
+
+	if err := os.WriteFile("redactyl.baseline.json", buf, 0644); err != nil {
+		return func() tea.Msg { return statusMsg(fmt.Sprintf("Error writing baseline: %v", err)) }
+	}
+
+	// Clear selection after bulk operation
+	m.selectedFindings = make(map[int]bool)
+
+	return func() tea.Msg { return statusMsg(fmt.Sprintf("Added %d findings to baseline", count)) }
+}
+
+// bulkIgnore adds all unique files from selected findings to .redactylignore
+func (m *Model) bulkIgnore() tea.Cmd {
+	if len(m.selectedFindings) == 0 {
+		return func() tea.Msg { return statusMsg("No findings selected") }
+	}
+
+	// Collect unique file paths
+	paths := make(map[string]bool)
+	for origIdx := range m.selectedFindings {
+		if origIdx >= 0 && origIdx < len(m.findings) {
+			paths[m.findings[origIdx].Path] = true
+		}
+	}
+
+	// Append to .redactylignore
+	file, err := os.OpenFile(".redactylignore", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return func() tea.Msg { return statusMsg(fmt.Sprintf("Error opening .redactylignore: %v", err)) }
+	}
+	defer file.Close()
+
+	for path := range paths {
+		if _, err := file.WriteString(path + "\n"); err != nil {
+			return func() tea.Msg { return statusMsg(fmt.Sprintf("Error writing to .redactylignore: %v", err)) }
+		}
+	}
+
+	// Clear selection after bulk operation
+	m.selectedFindings = make(map[int]bool)
+
+	return func() tea.Msg { return statusMsg(fmt.Sprintf("Added %d files to .redactylignore", len(paths))) }
 }
 
 type statusMsg string
