@@ -160,6 +160,20 @@ type Model struct {
 
 	// Context expansion state
 	contextLines     int               // Number of lines to show around finding (default 3)
+
+	// Grouping state
+	groupMode        string            // "none", "file", "detector"
+	expandedGroups   map[string]bool   // Set of expanded group keys
+	groupedFindings  []GroupedItem     // Flattened list for display (groups + findings)
+	pendingKey       string            // For multi-key sequences like "gf", "gd"
+}
+
+// GroupedItem represents either a group header or a finding in the grouped view
+type GroupedItem struct {
+	IsGroup    bool           // True if this is a group header
+	GroupKey   string         // Group identifier (file path or detector name)
+	GroupCount int            // Number of findings in this group
+	Finding    *types.Finding // Non-nil if this is a finding row
 }
 
 // SortColumn constants
@@ -168,6 +182,13 @@ const (
 	SortSeverity = "severity"
 	SortPath     = "path"
 	SortDetector = "detector"
+)
+
+// GroupMode constants
+const (
+	GroupNone     = "none"
+	GroupByFile   = "file"
+	GroupByDetector = "detector"
 )
 
 // NewModel initializes a new TUI model.
@@ -248,6 +269,8 @@ func NewModel(findings []types.Finding, rescanFunc func() ([]types.Finding, erro
 		searchInput:      ti,
 		selectedFindings: make(map[int]bool),
 		contextLines:     3,                 // Default context lines around finding
+		groupMode:        GroupNone,         // No grouping by default
+		expandedGroups:   make(map[string]bool),
 	}
 
 	if m.showEmpty {
@@ -388,6 +411,61 @@ func (m *Model) clearFilters() {
 
 // rebuildTableRows updates the table with current (filtered or all) findings
 func (m *Model) rebuildTableRows() {
+	// Handle grouped mode
+	if m.groupMode != GroupNone {
+		m.buildGroupedFindings()
+		rows := make([]table.Row, len(m.groupedFindings))
+		for i, item := range m.groupedFindings {
+			if item.IsGroup {
+				// Group header row
+				expandIcon := "+"
+				if m.expandedGroups[item.GroupKey] {
+					expandIcon = "-"
+				}
+				groupLabel := fmt.Sprintf("%s [%d]", item.GroupKey, item.GroupCount)
+				rows[i] = table.Row{
+					expandIcon,
+					"",
+					groupLabel,
+					"",
+				}
+			} else {
+				// Finding row (indented)
+				f := item.Finding
+				sev := "  " + severityText(f.Severity) // Indent findings
+
+				if isBaselined(*f, m.baselinedSet) {
+					sev = "  (b) " + severityText(f.Severity)
+				}
+
+				// Show different info based on group mode
+				var col2, col3 string
+				if m.groupMode == GroupByFile {
+					col2 = f.Detector
+					col3 = fmt.Sprintf("L%d: %s", f.Line, f.Match)
+				} else {
+					col2 = f.Path
+					col3 = f.Match
+				}
+
+				rows[i] = table.Row{
+					sev,
+					col2,
+					col3,
+					"",
+				}
+			}
+		}
+		m.table.SetRows(rows)
+		if m.table.Cursor() >= len(m.groupedFindings) {
+			m.table.SetCursor(0)
+		}
+		m.showEmpty = len(m.groupedFindings) == 0
+		m.updateViewportContent()
+		return
+	}
+
+	// Normal (ungrouped) mode
 	findings := m.getDisplayFindings()
 	rows := make([]table.Row, len(findings))
 	for i, f := range findings {
@@ -603,6 +681,115 @@ func (m *Model) exitDiffMode() {
 	m.rebuildTableRows()
 }
 
+// setGroupMode changes the grouping mode and rebuilds the view
+func (m *Model) setGroupMode(mode string) {
+	if m.groupMode == mode {
+		// Toggle off if already in this mode
+		m.groupMode = GroupNone
+		m.groupedFindings = nil
+		m.expandedGroups = make(map[string]bool)
+	} else {
+		m.groupMode = mode
+		m.expandedGroups = make(map[string]bool)
+		// Expand all groups by default
+		m.buildGroupedFindings()
+		for _, item := range m.groupedFindings {
+			if item.IsGroup {
+				m.expandedGroups[item.GroupKey] = true
+			}
+		}
+	}
+	m.rebuildTableRows()
+}
+
+// buildGroupedFindings builds the flattened list of groups and findings
+func (m *Model) buildGroupedFindings() {
+	if m.groupMode == GroupNone {
+		m.groupedFindings = nil
+		return
+	}
+
+	displayFindings := m.getDisplayFindings()
+
+	// Group findings by the appropriate key
+	groups := make(map[string][]types.Finding)
+	var groupOrder []string // Preserve order of first occurrence
+
+	for _, f := range displayFindings {
+		var key string
+		switch m.groupMode {
+		case GroupByFile:
+			key = f.Path
+		case GroupByDetector:
+			key = f.Detector
+		default:
+			continue
+		}
+
+		if _, exists := groups[key]; !exists {
+			groupOrder = append(groupOrder, key)
+		}
+		groups[key] = append(groups[key], f)
+	}
+
+	// Build flattened list
+	m.groupedFindings = nil
+	for _, key := range groupOrder {
+		findings := groups[key]
+		// Add group header
+		m.groupedFindings = append(m.groupedFindings, GroupedItem{
+			IsGroup:    true,
+			GroupKey:   key,
+			GroupCount: len(findings),
+		})
+
+		// Add findings if group is expanded
+		if m.expandedGroups[key] {
+			for i := range findings {
+				m.groupedFindings = append(m.groupedFindings, GroupedItem{
+					IsGroup:  false,
+					GroupKey: key,
+					Finding:  &findings[i],
+				})
+			}
+		}
+	}
+}
+
+// toggleGroupExpansion toggles the expansion state of the current group
+func (m *Model) toggleGroupExpansion() {
+	if m.groupMode == GroupNone || len(m.groupedFindings) == 0 {
+		return
+	}
+
+	idx := m.table.Cursor()
+	if idx < 0 || idx >= len(m.groupedFindings) {
+		return
+	}
+
+	item := m.groupedFindings[idx]
+	var groupKey string
+
+	if item.IsGroup {
+		groupKey = item.GroupKey
+	} else {
+		groupKey = item.GroupKey
+	}
+
+	// Toggle expansion
+	m.expandedGroups[groupKey] = !m.expandedGroups[groupKey]
+	m.buildGroupedFindings()
+	m.rebuildTableRows()
+}
+
+// getGroupedDisplayItem returns the item at the given index in grouped mode
+func (m *Model) getGroupedDisplayItem(idx int) *GroupedItem {
+	if m.groupMode == GroupNone || idx < 0 || idx >= len(m.groupedFindings) {
+		return nil
+	}
+	return &m.groupedFindings[idx]
+}
+
 // expandContext increases the number of context lines shown
 func (m *Model) expandContext() {
 	if m.contextLines < 20 {
@@ -799,6 +986,49 @@ func (m *Model) isSelected(displayIdx int) bool {
 
 // updateViewportContent updates the detail view with the currently selected finding.
 func (m *Model) updateViewportContent() {
+	// Handle grouped mode
+	if m.groupMode != GroupNone {
+		if len(m.groupedFindings) == 0 || !m.ready {
+			m.viewport.SetContent("")
+			return
+		}
+
+		idx := m.table.Cursor()
+		if idx >= 0 && idx < len(m.groupedFindings) {
+			item := m.groupedFindings[idx]
+
+			if item.IsGroup {
+				// Show group summary
+				var b strings.Builder
+				b.WriteString(fmt.Sprintf("%s\n\n", titleStyle.Render("Group Summary")))
+				b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Group:"), item.GroupKey))
+				b.WriteString(fmt.Sprintf("%s %d\n", keyStyle.Render("Findings:"), item.GroupCount))
+
+				expanded := m.expandedGroups[item.GroupKey]
+				if expanded {
+					b.WriteString(fmt.Sprintf("\n%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("Press Tab to collapse this group")))
+				} else {
+					b.WriteString(fmt.Sprintf("\n%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("Press Tab to expand this group")))
+				}
+
+				m.viewport.SetContent(b.String())
+				return
+			}
+
+			// It's a finding within a group - show the finding details
+			if item.Finding == nil {
+				m.viewport.SetContent("")
+				return
+			}
+			// Fall through to normal finding display with the grouped finding
+			m.updateViewportContentForFinding(*item.Finding)
+			return
+		}
+		m.viewport.SetContent("")
+		return
+	}
+
+	// Normal mode
 	displayFindings := m.getDisplayFindings()
 	if len(displayFindings) == 0 || !m.ready {
 		m.viewport.SetContent("")
@@ -808,89 +1038,93 @@ func (m *Model) updateViewportContent() {
 	idx := m.table.Cursor()
 	if idx >= 0 && idx < len(displayFindings) {
 		f := displayFindings[idx]
-
-		var b strings.Builder
-		b.WriteString(fmt.Sprintf("%s\n\n", titleStyle.Render("Finding Details")))
-
-		// Check if this finding is baselined
-		baselined := isBaselined(f, m.baselinedSet)
-		if baselined {
-			baselineStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("8")).
-				Italic(true)
-			b.WriteString(baselineStyle.Render("BASELINED: This finding is known/accepted. Press 'U' to remove from baseline."))
-			b.WriteString("\n\n")
-		}
-
-		// Render finding details using keyStyle for labels
-		b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Path:"), f.Path))
-		b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Detector:"), f.Detector))
-		b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Severity:"), f.Severity))
-		b.WriteString(fmt.Sprintf("%s %d\n", keyStyle.Render("Line:"), f.Line))
-		if f.Column > 0 {
-			b.WriteString(fmt.Sprintf("%s %d\n", keyStyle.Render("Column:"), f.Column))
-		}
-		if f.Secret != "" {
-			b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Secret:"), f.Secret))
-		}
-		if len(f.Metadata) > 0 {
-			b.WriteString(fmt.Sprintf("%s\n", keyStyle.Render("Metadata:")))
-			for k, v := range f.Metadata {
-				b.WriteString(fmt.Sprintf("  %s: %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(k), v))
-			}
-		}
-
-		// Git blame info
-		if blame := getGitBlame(f.Path, f.Line); blame != nil {
-			blameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("6")) // Cyan
-			blameText := fmt.Sprintf("%s by %s on %s", blame.Commit, blame.Author, blame.Date)
-			b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Blame:"), blameStyle.Render(blameText)))
-		}
-
-		// Context section header with expand/contract hint
-		contextHint := fmt.Sprintf(" (+/- to expand/contract, showing %d lines)", m.contextLines*2+1)
-		b.WriteString(fmt.Sprintf("\n%s%s\n",
-			keyStyle.Render("Context:"),
-			lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(contextHint)))
-
-		// Try to read expanded context from file
-		lines, startLine, err := readFileContext(f.Path, f.Line, m.contextLines)
-		if err == nil && len(lines) > 0 {
-			// Render context with line numbers
-			lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-			highlightLineStyle := lipgloss.NewStyle().Background(lipgloss.Color("236"))
-
-			for i, line := range lines {
-				lineNum := startLine + i
-				lineNumStr := lineNumStyle.Render(fmt.Sprintf("%4d ", lineNum))
-
-				// Highlight the line containing the finding
-				if lineNum == f.Line {
-					// Highlight the match within the line
-					if f.Match != "" {
-						line = strings.ReplaceAll(line, f.Match, matchStyle.Render(f.Match))
-					}
-					b.WriteString(lineNumStr + highlightLineStyle.Render(line) + "\n")
-				} else {
-					b.WriteString(lineNumStr + line + "\n")
-				}
-			}
-		} else {
-			// Fallback to original context or match
-			context := f.Context
-			if context == "" {
-				context = f.Match // Fallback to match if no context
-			}
-
-			// Highlight the matched string within the context
-			if f.Match != "" {
-				context = strings.ReplaceAll(context, f.Match, matchStyle.Render(f.Match))
-			}
-			b.WriteString(context)
-		}
-
-		m.viewport.SetContent(b.String())
+		m.updateViewportContentForFinding(f)
 	}
+}
+
+// updateViewportContentForFinding renders finding details in the viewport
+func (m *Model) updateViewportContentForFinding(f types.Finding) {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%s\n\n", titleStyle.Render("Finding Details")))
+
+	// Check if this finding is baselined
+	baselined := isBaselined(f, m.baselinedSet)
+	if baselined {
+		baselineStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")).
+			Italic(true)
+		b.WriteString(baselineStyle.Render("BASELINED: This finding is known/accepted. Press 'U' to remove from baseline."))
+		b.WriteString("\n\n")
+	}
+
+	// Render finding details using keyStyle for labels
+	b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Path:"), f.Path))
+	b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Detector:"), f.Detector))
+	b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Severity:"), f.Severity))
+	b.WriteString(fmt.Sprintf("%s %d\n", keyStyle.Render("Line:"), f.Line))
+	if f.Column > 0 {
+		b.WriteString(fmt.Sprintf("%s %d\n", keyStyle.Render("Column:"), f.Column))
+	}
+	if f.Secret != "" {
+		b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Secret:"), f.Secret))
+	}
+	if len(f.Metadata) > 0 {
+		b.WriteString(fmt.Sprintf("%s\n", keyStyle.Render("Metadata:")))
+		for k, v := range f.Metadata {
+			b.WriteString(fmt.Sprintf("  %s: %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(k), v))
+		}
+	}
+
+	// Git blame info
+	if blame := getGitBlame(f.Path, f.Line); blame != nil {
+		blameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("6")) // Cyan
+		blameText := fmt.Sprintf("%s by %s on %s", blame.Commit, blame.Author, blame.Date)
+		b.WriteString(fmt.Sprintf("%s %s\n", keyStyle.Render("Blame:"), blameStyle.Render(blameText)))
+	}
+
+	// Context section header with expand/contract hint
+	contextHint := fmt.Sprintf(" (+/- to expand/contract, showing %d lines)", m.contextLines*2+1)
+	b.WriteString(fmt.Sprintf("\n%s%s\n",
+		keyStyle.Render("Context:"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(contextHint)))
+
+	// Try to read expanded context from file
+	lines, startLine, err := readFileContext(f.Path, f.Line, m.contextLines)
+	if err == nil && len(lines) > 0 {
+		// Render context with line numbers
+		lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+		highlightLineStyle := lipgloss.NewStyle().Background(lipgloss.Color("236"))
+
+		for i, line := range lines {
+			lineNum := startLine + i
+			lineNumStr := lineNumStyle.Render(fmt.Sprintf("%4d ", lineNum))
+
+			// Highlight the line containing the finding
+			if lineNum == f.Line {
+				// Highlight the match within the line
+				if f.Match != "" {
+					line = strings.ReplaceAll(line, f.Match, matchStyle.Render(f.Match))
+				}
+				b.WriteString(lineNumStr + highlightLineStyle.Render(line) + "\n")
+			} else {
+				b.WriteString(lineNumStr + line + "\n")
+			}
+		}
+	} else {
+		// Fallback to original context or match
+		context := f.Context
+		if context == "" {
+			context = f.Match // Fallback to match if no context
+		}
+
+		// Highlight the matched string within the context
+		if f.Match != "" {
+			context = strings.ReplaceAll(context, f.Match, matchStyle.Render(f.Match))
+		}
+		b.WriteString(context)
+	}
+
+	m.viewport.SetContent(b.String())
 }
 
 // Update handles incoming messages (events) and updates the model state.
@@ -1016,6 +1250,42 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.searchQuery = m.searchInput.Value()
 				m.applyFilters()
 				return m, cmd
+			}
+		}
+
+		// Handle pending key sequences (like "gf", "gd")
+		if m.pendingKey == "g" {
+			m.pendingKey = ""
+			switch msg.String() {
+			case "f": // gf - group by file
+				m.setGroupMode(GroupByFile)
+				timeout := time.Now().Add(3 * time.Second)
+				m.statusTimeout = &timeout
+				if m.groupMode == GroupByFile {
+					m.statusMessage = "Grouped by file (Tab to expand/collapse, gf to ungroup)"
+				} else {
+					m.statusMessage = "Grouping disabled"
+				}
+				return m, nil
+			case "d": // gd - group by detector
+				m.setGroupMode(GroupByDetector)
+				timeout := time.Now().Add(3 * time.Second)
+				m.statusTimeout = &timeout
+				if m.groupMode == GroupByDetector {
+					m.statusMessage = "Grouped by detector (Tab to expand/collapse, gd to ungroup)"
+				} else {
+					m.statusMessage = "Grouping disabled"
+				}
+				return m, nil
+			case "g": // gg - go to top (vim style)
+				if !m.showEmpty {
+					m.table.GotoTop()
+					m.updateViewportContent()
+				}
+				return m, nil
+			default:
+				// Unknown sequence, just ignore
+				return m, nil
 			}
 		}
 
@@ -1231,6 +1501,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+		case "tab": // Toggle group expansion
+			if m.groupMode != GroupNone {
+				m.toggleGroupExpansion()
+				return m, nil
+			}
 		case "r": // Rescan key
 			if m.rescanFunc == nil {
 				// No rescan function provided
@@ -1307,7 +1582,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateViewportContent()
 				return m, nil
 			}
-		case "g", "home": // Jump to top of table
+		case "g": // Start pending key sequence for grouping (gf, gd) or go to top (gg)
+			m.pendingKey = "g"
+			return m, nil
+		case "home": // Jump to top of table
 			if !m.showEmpty {
 				m.table.GotoTop()
 				m.updateViewportContent()
@@ -1724,6 +2002,13 @@ func (m Model) View() string {
 		lines = append(lines, formatRow("i / I", "Ignore / unignore file"))
 		lines = append(lines, formatRow("b / U", "Baseline / unbaseline"))
 		lines = append(lines, formatRow("r", "Rescan"))
+		lines = append(lines, "")
+
+		// Grouping
+		lines = append(lines, sectionStyle.Render("Grouping"))
+		lines = append(lines, formatRow("gf", "Group by file"))
+		lines = append(lines, formatRow("gd", "Group by detector"))
+		lines = append(lines, formatRow("Tab", "Expand/collapse group"))
 		lines = append(lines, "")
 
 		// Diff & History

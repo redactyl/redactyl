@@ -70,6 +70,16 @@ Shows new findings (red, +) and fixed findings (green, -) since last scan.
 
 Context view shows line numbers and highlights the finding line. Git blame info (author, commit, date) is displayed when available.
 
+### Grouping
+| Key | Action |
+|-----|--------|
+| `gf` | Group findings by file path |
+| `gd` | Group findings by detector type |
+| `Tab` | Expand / collapse current group |
+| `gg` | Go to first row (vim style) |
+
+Groups show a count of findings and can be expanded/collapsed. Press `gf` or `gd` again to disable grouping.
+
 ### Scan History (press `a`)
 | Key | Action |
 |-----|--------|
@@ -94,12 +104,6 @@ Context view shows line numbers and highlights the finding line. Git blame info 
 ---
 
 ## Planned Features (TODO)
-
-### Phase 11: Grouping
-- [ ] **Group by File** (`gf`): Collapse findings by file path
-- [ ] **Group by Detector** (`gd`): Collapse findings by detector type
-- [ ] **Expand/Collapse** (`Tab`): Toggle group expansion
-- [ ] Group counts in collapsed view
 
 ### Phase 12: Virtual File Handling
 - [ ] Detect virtual paths (e.g., `image.tar::layer::file`)
