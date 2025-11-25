@@ -89,10 +89,11 @@ redactyl scan
 
 The TUI provides:
 - Real-time findings with severity color-coding
-- Navigation with vim-style keybindings
-- Quick actions: open in editor, baseline findings, add to ignore
-- Rescan without exiting
-- Timestamp showing when last scanned
+- Vim-style navigation with search, filter, and grouping
+- Syntax-highlighted context preview
+- Quick actions: open in editor, baseline, ignore, export
+- Virtual file extraction from archives
+- Diff view to compare scans
 
 Non-interactive scan (for CI/CD):
 
@@ -331,18 +332,45 @@ Redactyl provides a rich terminal user interface (TUI) for interactive secret sc
 ### Features
 
 - **Visual findings table** - Color-coded severity (High/Medium/Low)
-- **Detailed view** - Full context for each finding with metadata
+- **Detailed view** - Full context with syntax highlighting (200+ languages)
 - **Quick actions:**
   - `o` / `Enter` - Open file in `$EDITOR` at exact line and column
-  - `i` - Add file to `.redactylignore`
-  - `b` - Add finding to baseline
+  - `i` / `I` - Add/remove file from `.redactylignore`
+  - `b` / `U` - Add/remove finding from baseline
   - `r` - Rescan (fresh scan without cache)
+  - `e` - Export current view (JSON/CSV/SARIF)
+  - `y` / `Y` - Copy path / full details to clipboard
 - **Navigation:**
-  - `↑↓` / `jk` - Move through findings
-  - `d` / `u` - Page down/up in detail view
+  - `j` / `k` - Move through findings
+  - `Ctrl+d` / `Ctrl+u` - Half-page down/up
   - `g` / `G` - Jump to top/bottom
-- **Timestamp display** - Shows when last scanned (e.g., "Last scanned 5m ago")
-- **Baseline visualization** - Baselined findings shown in dimmed gray
+  - `n` / `N` - Jump to next/previous HIGH severity finding
+- **Search & Filter:**
+  - `/` - Search by path, detector, or match text
+  - `1` / `2` / `3` - Filter by HIGH/MED/LOW severity
+  - `s` / `S` - Cycle sort column / reverse sort
+  - `Esc` - Clear all filters
+- **Grouping:**
+  - `gf` - Group findings by file path
+  - `gd` - Group findings by detector type
+  - `Tab` - Expand/collapse groups
+- **Selection & Bulk:**
+  - `v` - Toggle selection on current finding
+  - `V` - Select/deselect all visible findings
+  - `B` - Bulk baseline all selected
+  - `Ctrl+i` - Bulk ignore all selected files
+- **Context:**
+  - `+` / `-` - Show more/fewer context lines around finding
+  - Git commit info displayed when available
+- **Diff View:**
+  - `D` - Compare current scan vs previous scan
+  - Shows new findings (red) and fixed findings (green)
+- **Virtual Files:**
+  - Findings inside archives show file breakdown
+  - Press `o` to extract to temp and open in editor
+- **Scan History:**
+  - `a` - View audit log history
+  - Load and review previous scans
 
 ### Usage
 
