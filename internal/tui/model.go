@@ -145,6 +145,9 @@ type Model struct {
 
 	// Selection state (for bulk operations)
 	selectedFindings map[int]bool      // Set of selected finding indices (in original findings)
+
+	// Export mode state
+	showExportMenu   bool              // True when export format menu is shown
 }
 
 // SortColumn constants
@@ -401,7 +404,10 @@ func (m *Model) rebuildTableRows() {
 		}
 	}
 	m.table.SetRows(rows)
-	m.table.SetCursor(0)
+	// Only reset cursor if it's out of bounds
+	if m.table.Cursor() >= len(findings) {
+		m.table.SetCursor(0)
+	}
 	m.showEmpty = len(findings) == 0
 	m.updateViewportContent()
 }
@@ -732,31 +738,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// If export menu is showing, handle format selection
+		if m.showExportMenu {
+			switch msg.String() {
+			case "1", "j": // JSON
+				m.showExportMenu = false
+				return m, m.exportFindings("json")
+			case "2", "c": // CSV
+				m.showExportMenu = false
+				return m, m.exportFindings("csv")
+			case "3", "s": // SARIF
+				m.showExportMenu = false
+				return m, m.exportFindings("sarif")
+			case "esc", "q", "e":
+				m.showExportMenu = false
+				return m, nil
+			}
+			return m, nil
+		}
+
 		// If search mode is active, handle text input
 		if m.searchMode {
 			switch msg.String() {
 			case "enter":
-				// Execute search
+				// Confirm search and exit search mode
 				m.searchQuery = m.searchInput.Value()
 				m.searchMode = false
 				m.searchInput.Blur()
-				m.applyFilters()
-				if m.searchQuery != "" {
-					displayFindings := m.getDisplayFindings()
-					timeout := time.Now().Add(3 * time.Second)
-					m.statusTimeout = &timeout
-					m.statusMessage = fmt.Sprintf("Found %d matches for '%s' (Esc to clear)", len(displayFindings), m.searchQuery)
-				}
+				// Filters already applied via live search
 				return m, nil
 			case "esc":
-				// Cancel search
+				// Cancel search - restore previous query
 				m.searchMode = false
 				m.searchInput.Blur()
 				m.searchInput.SetValue(m.searchQuery) // Restore previous query
+				m.applyFilters()                      // Re-apply with old query
 				return m, nil
 			default:
 				// Forward to text input
 				m.searchInput, cmd = m.searchInput.Update(msg)
+				// Live filtering as user types
+				m.searchQuery = m.searchInput.Value()
+				m.applyFilters()
 				return m, cmd
 			}
 		}
@@ -914,6 +937,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "U": // Unbaseline - remove from baseline (capital U)
 			if !m.showEmpty {
 				return m, m.removeFromBaseline()
+			}
+		case "e": // Export menu
+			if len(m.getDisplayFindings()) > 0 {
+				m.showExportMenu = true
+				return m, nil
+			}
+		case "y": // Copy path to clipboard
+			if !m.showEmpty {
+				return m, m.copyPathToClipboard()
+			}
+		case "Y": // Copy full finding to clipboard
+			if !m.showEmpty {
+				return m, m.copyFindingToClipboard()
 			}
 		case "r": // Rescan key
 			if m.viewingCached {
@@ -1310,35 +1346,30 @@ func (m Model) View() string {
 		Padding(0, 2).
 		Render(statusContent)
 
-	// Build search bar if in search mode
-	var searchBar string
+	// Build bottom bar - either search input (vim-style) or status bar
+	var bottomBar string
 	if m.searchMode {
+		// Vim-style search bar at bottom
+		matchCount := len(m.getDisplayFindings())
+		searchStatus := fmt.Sprintf(" (%d matches)", matchCount)
 		searchBarStyle := lipgloss.NewStyle().
 			Background(lipgloss.Color("235")).
 			Foreground(lipgloss.Color("15")).
 			Width(m.width).
-			Padding(0, 2)
-		searchBar = searchBarStyle.Render(m.searchInput.View())
+			Padding(0, 1)
+		// Show search input with match count
+		bottomBar = searchBarStyle.Render(m.searchInput.View() + searchStatus)
+	} else {
+		bottomBar = statusRender
 	}
 
 	// Build main view
-	var mainView string
-	if m.searchMode {
-		mainView = lipgloss.JoinVertical(lipgloss.Left,
-			statsHeader,
-			searchBar,
-			tableRender,
-			detailRender,
-			statusRender,
-		)
-	} else {
-		mainView = lipgloss.JoinVertical(lipgloss.Left,
-			statsHeader,
-			tableRender,
-			detailRender,
-			statusRender,
-		)
-	}
+	mainView := lipgloss.JoinVertical(lipgloss.Left,
+		statsHeader,
+		tableRender,
+		detailRender,
+		bottomBar,
+	)
 
 	// Show help overlay if requested
 	if m.showHelp {
@@ -1396,6 +1427,12 @@ func (m Model) View() string {
 		lines = append(lines, formatRow("Ctrl+i", "Bulk ignore selected"))
 		lines = append(lines, "")
 
+		// Export & Copy
+		lines = append(lines, sectionStyle.Render("Export & Copy"))
+		lines = append(lines, formatRow("e", "Export (JSON/CSV/SARIF)"))
+		lines = append(lines, formatRow("y / Y", "Copy path / full finding"))
+		lines = append(lines, "")
+
 		// Actions
 		lines = append(lines, sectionStyle.Render("Actions"))
 		lines = append(lines, formatRow("Enter", "Open in $EDITOR"))
@@ -1425,6 +1462,44 @@ func (m Model) View() string {
 			Render(helpContent)
 
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, helpBox)
+	}
+
+	// Show export menu popup if requested
+	if m.showExportMenu {
+		titleStyle := lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("15"))
+
+		keyColor := lipgloss.Color("10")
+		descColor := lipgloss.Color("250")
+
+		var lines []string
+		lines = append(lines, titleStyle.Render("Export Findings"))
+		lines = append(lines, "")
+		lines = append(lines, fmt.Sprintf("  %s  JSON  (human readable)",
+			lipgloss.NewStyle().Foreground(keyColor).Bold(true).Render("1/j")))
+		lines = append(lines, fmt.Sprintf("  %s  CSV   (spreadsheet)",
+			lipgloss.NewStyle().Foreground(keyColor).Bold(true).Render("2/c")))
+		lines = append(lines, fmt.Sprintf("  %s  SARIF (CI/CD integration)",
+			lipgloss.NewStyle().Foreground(keyColor).Bold(true).Render("3/s")))
+		lines = append(lines, "")
+		lines = append(lines, lipgloss.NewStyle().
+			Foreground(descColor).
+			Italic(true).
+			Render(fmt.Sprintf("Exporting %d findings", len(m.getDisplayFindings()))))
+		lines = append(lines, "")
+		lines = append(lines, lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")).
+			Italic(true).
+			Render("Esc to cancel"))
+
+		exportContent := lipgloss.JoinVertical(lipgloss.Left, lines...)
+		exportBox := popupStyle.
+			Width(40).
+			Padding(1, 3).
+			Render(exportContent)
+
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, exportBox)
 	}
 
 	// Show scan history popup if requested

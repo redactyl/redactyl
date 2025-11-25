@@ -34,6 +34,13 @@ Interactive Terminal User Interface for reviewing, filtering, and remediating sc
 | `B` | Bulk baseline all selected findings |
 | `Ctrl+i` | Bulk ignore all selected files |
 
+### Export & Clipboard
+| Key | Action |
+|-----|--------|
+| `e` | Export current view (JSON/CSV/SARIF) |
+| `y` | Copy file path to clipboard |
+| `Y` | Copy full finding details to clipboard |
+
 ### Actions
 | Key | Action |
 |-----|--------|
@@ -71,11 +78,6 @@ Interactive Terminal User Interface for reviewing, filtering, and remediating sc
 ---
 
 ## Planned Features (TODO)
-
-### Phase 8: Export & Clipboard
-- [ ] **Export** (`e`): Export current view to JSON/SARIF/CSV
-- [ ] **Copy Path** (`y`): Copy file path to clipboard
-- [ ] **Copy Finding** (`Y`): Copy full finding details to clipboard
 
 ### Phase 9: Diff View
 - [ ] **Diff Mode** (`D`): Compare current scan vs previous scan

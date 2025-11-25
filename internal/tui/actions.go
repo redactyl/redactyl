@@ -1,12 +1,16 @@
 package tui
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/redactyl/redactyl/internal/report"
 	"github.com/redactyl/redactyl/internal/types"
@@ -332,6 +336,210 @@ func (m *Model) bulkIgnore() tea.Cmd {
 	m.selectedFindings = make(map[int]bool)
 
 	return func() tea.Msg { return statusMsg(fmt.Sprintf("Added %d files to .redactylignore", len(paths))) }
+}
+
+// copyPathToClipboard copies the current finding's file path to clipboard
+func (m Model) copyPathToClipboard() tea.Cmd {
+	f := m.getSelectedFinding()
+	if f == nil {
+		return func() tea.Msg { return statusMsg("No finding selected") }
+	}
+
+	if err := clipboard.WriteAll(f.Path); err != nil {
+		return func() tea.Msg { return statusMsg(fmt.Sprintf("Clipboard error: %v", err)) }
+	}
+
+	return func() tea.Msg { return statusMsg(fmt.Sprintf("Copied: %s", f.Path)) }
+}
+
+// copyFindingToClipboard copies full finding details to clipboard
+func (m Model) copyFindingToClipboard() tea.Cmd {
+	f := m.getSelectedFinding()
+	if f == nil {
+		return func() tea.Msg { return statusMsg("No finding selected") }
+	}
+
+	// Build detailed text representation
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Path: %s\n", f.Path))
+	sb.WriteString(fmt.Sprintf("Line: %d\n", f.Line))
+	if f.Column > 0 {
+		sb.WriteString(fmt.Sprintf("Column: %d\n", f.Column))
+	}
+	sb.WriteString(fmt.Sprintf("Detector: %s\n", f.Detector))
+	sb.WriteString(fmt.Sprintf("Severity: %s\n", f.Severity))
+	sb.WriteString(fmt.Sprintf("Match: %s\n", f.Match))
+	if f.Secret != "" {
+		sb.WriteString(fmt.Sprintf("Secret: %s\n", f.Secret))
+	}
+	if f.Context != "" {
+		sb.WriteString(fmt.Sprintf("\nContext:\n%s\n", f.Context))
+	}
+
+	if err := clipboard.WriteAll(sb.String()); err != nil {
+		return func() tea.Msg { return statusMsg(fmt.Sprintf("Clipboard error: %v", err)) }
+	}
+
+	return func() tea.Msg { return statusMsg("Copied finding details to clipboard") }
+}
+
+// exportFindings exports current view to a file
+func (m *Model) exportFindings(format string) tea.Cmd {
+	displayFindings := m.getDisplayFindings()
+	if len(displayFindings) == 0 {
+		return func() tea.Msg { return statusMsg("No findings to export") }
+	}
+
+	// Generate filename with timestamp
+	timestamp := time.Now().Format("20060102-150405")
+	var filename string
+	var data []byte
+	var err error
+
+	switch format {
+	case "json":
+		filename = fmt.Sprintf("redactyl-export-%s.json", timestamp)
+		data, err = json.MarshalIndent(displayFindings, "", "  ")
+	case "csv":
+		filename = fmt.Sprintf("redactyl-export-%s.csv", timestamp)
+		data, err = m.findingsToCSV(displayFindings)
+	case "sarif":
+		filename = fmt.Sprintf("redactyl-export-%s.sarif", timestamp)
+		data, err = m.findingsToSARIF(displayFindings)
+	default:
+		return func() tea.Msg { return statusMsg(fmt.Sprintf("Unknown format: %s", format)) }
+	}
+
+	if err != nil {
+		return func() tea.Msg { return statusMsg(fmt.Sprintf("Export error: %v", err)) }
+	}
+
+	// Write to current directory
+	if err := os.WriteFile(filename, data, 0644); err != nil {
+		return func() tea.Msg { return statusMsg(fmt.Sprintf("Write error: %v", err)) }
+	}
+
+	absPath, _ := filepath.Abs(filename)
+	return func() tea.Msg { return statusMsg(fmt.Sprintf("Exported %d findings to %s", len(displayFindings), absPath)) }
+}
+
+// findingsToCSV converts findings to CSV format
+func (m *Model) findingsToCSV(findings []types.Finding) ([]byte, error) {
+	var sb strings.Builder
+	writer := csv.NewWriter(&sb)
+
+	// Header
+	if err := writer.Write([]string{"Severity", "Detector", "Path", "Line", "Column", "Match", "Secret"}); err != nil {
+		return nil, err
+	}
+
+	// Rows
+	for _, f := range findings {
+		row := []string{
+			string(f.Severity),
+			f.Detector,
+			f.Path,
+			fmt.Sprintf("%d", f.Line),
+			fmt.Sprintf("%d", f.Column),
+			f.Match,
+			f.Secret,
+		}
+		if err := writer.Write(row); err != nil {
+			return nil, err
+		}
+	}
+
+	writer.Flush()
+	return []byte(sb.String()), writer.Error()
+}
+
+// findingsToSARIF converts findings to SARIF 2.1.0 format
+func (m *Model) findingsToSARIF(findings []types.Finding) ([]byte, error) {
+	// Simplified SARIF structure
+	type sarifLocation struct {
+		PhysicalLocation struct {
+			ArtifactLocation struct {
+				URI string `json:"uri"`
+			} `json:"artifactLocation"`
+			Region struct {
+				StartLine   int `json:"startLine"`
+				StartColumn int `json:"startColumn,omitempty"`
+			} `json:"region"`
+		} `json:"physicalLocation"`
+	}
+
+	type sarifResult struct {
+		RuleID    string          `json:"ruleId"`
+		Level     string          `json:"level"`
+		Message   struct{ Text string } `json:"message"`
+		Locations []sarifLocation `json:"locations"`
+	}
+
+	type sarifRun struct {
+		Tool struct {
+			Driver struct {
+				Name    string `json:"name"`
+				Version string `json:"version"`
+			} `json:"driver"`
+		} `json:"tool"`
+		Results []sarifResult `json:"results"`
+	}
+
+	type sarifReport struct {
+		Schema  string     `json:"$schema"`
+		Version string     `json:"version"`
+		Runs    []sarifRun `json:"runs"`
+	}
+
+	// Build results
+	results := make([]sarifResult, len(findings))
+	for i, f := range findings {
+		level := "warning"
+		switch f.Severity {
+		case types.SevHigh:
+			level = "error"
+		case types.SevLow:
+			level = "note"
+		}
+
+		loc := sarifLocation{}
+		loc.PhysicalLocation.ArtifactLocation.URI = f.Path
+		loc.PhysicalLocation.Region.StartLine = f.Line
+		if f.Column > 0 {
+			loc.PhysicalLocation.Region.StartColumn = f.Column
+		}
+
+		results[i] = sarifResult{
+			RuleID:    f.Detector,
+			Level:     level,
+			Message:   struct{ Text string }{Text: fmt.Sprintf("Secret detected: %s", f.Match)},
+			Locations: []sarifLocation{loc},
+		}
+	}
+
+	report := sarifReport{
+		Schema:  "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+		Version: "2.1.0",
+		Runs: []sarifRun{{
+			Tool: struct {
+				Driver struct {
+					Name    string `json:"name"`
+					Version string `json:"version"`
+				} `json:"driver"`
+			}{
+				Driver: struct {
+					Name    string `json:"name"`
+					Version string `json:"version"`
+				}{
+					Name:    "redactyl",
+					Version: "1.0.0",
+				},
+			},
+			Results: results,
+		}},
+	}
+
+	return json.MarshalIndent(report, "", "  ")
 }
 
 type statusMsg string
