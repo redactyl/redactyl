@@ -332,7 +332,7 @@ Redactyl provides a rich terminal user interface (TUI) for interactive secret sc
 ### Features
 
 - **Visual findings table** - Color-coded severity (High/Medium/Low)
-- **Detailed view** - Full context with syntax highlighting (200+ languages)
+- **Detailed view** - Full context with syntax highlighting
 - **Quick actions:**
   - `o` / `Enter` - Open file in `$EDITOR` at exact line and column
   - `i` / `I` - Add/remove file from `.redactylignore`
