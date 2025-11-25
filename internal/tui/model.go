@@ -109,63 +109,63 @@ func formatDuration(d time.Duration) string {
 
 // Model represents the main state of the TUI application.
 type Model struct {
-	table            table.Model
-	viewport         viewport.Model
-	spinner          spinner.Model
-	findings         []types.Finding
-	filteredFindings []types.Finding                 // Findings after filter applied (nil = no filter)
-	filteredIndices  []int                           // Maps filtered index to original findings index
-	baselinedSet     map[string]bool                 // Keys of baselined findings
-	quitting         bool
-	ready            bool       // Indicates if terminal dimensions are known
-	scanning         bool       // True when rescan is in progress
-	hasScannedOnce   bool       // True after first scan completes
-	initialScanDone  bool       // True if we started with findings (not first ever scan)
-	viewingCached      bool       // True when viewing cached results
-	cachedTimestamp    time.Time  // Timestamp of cached results
-	lastScanTime       time.Time  // Timestamp of the last scan (always set)
-	viewingHistorical  bool       // True when viewing a historical scan from audit log
-	showScanHistory    bool       // True when scan history popup is shown
-	scanHistory        []audit.ScanRecord // Loaded scan history
-	historySelection   int        // Selected scan in history list (0-based)
-	height           int
-	width            int
-	statusMessage    string
-	statusTimeout    *time.Time                      // When to clear status message
-	rescanFunc       func() ([]types.Finding, error) // Callback to re-run scan
-	showEmpty        bool                            // True if no findings were found
-	showHelp         bool                            // True when help overlay is shown
+	table             table.Model
+	viewport          viewport.Model
+	spinner           spinner.Model
+	findings          []types.Finding
+	filteredFindings  []types.Finding // Findings after filter applied (nil = no filter)
+	filteredIndices   []int           // Maps filtered index to original findings index
+	baselinedSet      map[string]bool // Keys of baselined findings
+	quitting          bool
+	ready             bool               // Indicates if terminal dimensions are known
+	scanning          bool               // True when rescan is in progress
+	hasScannedOnce    bool               // True after first scan completes
+	initialScanDone   bool               // True if we started with findings (not first ever scan)
+	viewingCached     bool               // True when viewing cached results
+	cachedTimestamp   time.Time          // Timestamp of cached results
+	lastScanTime      time.Time          // Timestamp of the last scan (always set)
+	viewingHistorical bool               // True when viewing a historical scan from audit log
+	showScanHistory   bool               // True when scan history popup is shown
+	scanHistory       []audit.ScanRecord // Loaded scan history
+	historySelection  int                // Selected scan in history list (0-based)
+	height            int
+	width             int
+	statusMessage     string
+	statusTimeout     *time.Time                      // When to clear status message
+	rescanFunc        func() ([]types.Finding, error) // Callback to re-run scan
+	showEmpty         bool                            // True if no findings were found
+	showHelp          bool                            // True when help overlay is shown
 
 	// Search & Filter state
-	searchMode       bool              // True when search input is active
-	searchInput      textinput.Model   // Text input for search
-	searchQuery      string            // Current active search query
-	severityFilter   types.Severity    // Filter by severity ("" = no filter)
+	searchMode     bool            // True when search input is active
+	searchInput    textinput.Model // Text input for search
+	searchQuery    string          // Current active search query
+	severityFilter types.Severity  // Filter by severity ("" = no filter)
 
 	// Sort state
-	sortColumn       string            // Current sort column: "severity", "path", "detector", "" (default)
-	sortReverse      bool              // True if sort is reversed
+	sortColumn  string // Current sort column: "severity", "path", "detector", "" (default)
+	sortReverse bool   // True if sort is reversed
 
 	// Selection state (for bulk operations)
-	selectedFindings map[int]bool      // Set of selected finding indices (in original findings)
+	selectedFindings map[int]bool // Set of selected finding indices (in original findings)
 
 	// Export mode state
-	showExportMenu   bool              // True when export format menu is shown
+	showExportMenu bool // True when export format menu is shown
 
 	// Diff view state
-	diffMode         bool              // True when showing diff view
-	diffNewFindings  []types.Finding   // Findings added since last scan
-	diffFixedFindings []types.Finding  // Findings removed since last scan
-	diffPrevTimestamp time.Time        // Timestamp of the previous scan
+	diffMode          bool            // True when showing diff view
+	diffNewFindings   []types.Finding // Findings added since last scan
+	diffFixedFindings []types.Finding // Findings removed since last scan
+	diffPrevTimestamp time.Time       // Timestamp of the previous scan
 
 	// Context expansion state
-	contextLines     int               // Number of lines to show around finding (default 3)
+	contextLines int // Number of lines to show around finding (default 3)
 
 	// Grouping state
-	groupMode        string            // "none", "file", "detector"
-	expandedGroups   map[string]bool   // Set of expanded group keys
-	groupedFindings  []GroupedItem     // Flattened list for display (groups + findings)
-	pendingKey       string            // For multi-key sequences like "gf", "gd"
+	groupMode       string          // "none", "file", "detector"
+	expandedGroups  map[string]bool // Set of expanded group keys
+	groupedFindings []GroupedItem   // Flattened list for display (groups + findings)
+	pendingKey      string          // For multi-key sequences like "gf", "gd"
 }
 
 // GroupedItem represents either a group header or a finding in the grouped view
@@ -186,8 +186,8 @@ const (
 
 // GroupMode constants
 const (
-	GroupNone     = "none"
-	GroupByFile   = "file"
+	GroupNone       = "none"
+	GroupByFile     = "file"
 	GroupByDetector = "detector"
 )
 
@@ -195,7 +195,7 @@ const (
 func NewModel(findings []types.Finding, rescanFunc func() ([]types.Finding, error)) Model {
 	// Define table columns - use plain text (no ANSI) to avoid truncation issues
 	columns := []table.Column{
-		{Title: "Sev", Width: 8},   // "HIGH" or "(b) HIGH"
+		{Title: "Sev", Width: 8}, // "HIGH" or "(b) HIGH"
 		{Title: "Detector", Width: 20},
 		{Title: "Path", Width: 40},
 		{Title: "Match", Width: 35},
@@ -268,8 +268,8 @@ func NewModel(findings []types.Finding, rescanFunc func() ([]types.Finding, erro
 		lastScanTime:     time.Now(),        // Set scan time to now
 		searchInput:      ti,
 		selectedFindings: make(map[int]bool),
-		contextLines:     3,                 // Default context lines around finding
-		groupMode:        GroupNone,         // No grouping by default
+		contextLines:     3,         // Default context lines around finding
+		groupMode:        GroupNone, // No grouping by default
 		expandedGroups:   make(map[string]bool),
 	}
 
@@ -794,6 +794,9 @@ func (m *Model) getGroupedDisplayItem(idx int) *GroupedItem {
 func (m *Model) expandContext() {
 	if m.contextLines < 20 {
 		m.contextLines += 2
+		if m.contextLines > 20 {
+			m.contextLines = 20
+		}
 		m.updateViewportContent()
 	}
 }
@@ -1687,7 +1690,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.findings = msg
 		m.showEmpty = len(m.findings) == 0
 		m.lastScanTime = time.Now() // Update scan timestamp
-		m.viewingCached = false      // No longer viewing cached results after rescan
+		m.viewingCached = false     // No longer viewing cached results after rescan
 
 		// Re-populate table with new findings
 
@@ -1709,7 +1712,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewportContent()
 
 		// Update status message based on new findings with timeout
-		m.scanning = false   // Scan complete
+		m.scanning = false      // Scan complete
 		m.hasScannedOnce = true // Mark that we've completed a scan
 		timeout := time.Now().Add(5 * time.Second)
 		m.statusTimeout = &timeout

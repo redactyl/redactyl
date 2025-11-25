@@ -457,7 +457,9 @@ func (m *Model) exportFindings(format string) tea.Cmd {
 	}
 
 	absPath, _ := filepath.Abs(filename)
-	return func() tea.Msg { return statusMsg(fmt.Sprintf("Exported %d findings to %s", len(displayFindings), absPath)) }
+	return func() tea.Msg {
+		return statusMsg(fmt.Sprintf("Exported %d findings to %s", len(displayFindings), absPath))
+	}
 }
 
 // findingsToCSV converts findings to CSV format
@@ -506,10 +508,10 @@ func (m *Model) findingsToSARIF(findings []types.Finding) ([]byte, error) {
 	}
 
 	type sarifResult struct {
-		RuleID    string          `json:"ruleId"`
-		Level     string          `json:"level"`
+		RuleID    string                `json:"ruleId"`
+		Level     string                `json:"level"`
 		Message   struct{ Text string } `json:"message"`
-		Locations []sarifLocation `json:"locations"`
+		Locations []sarifLocation       `json:"locations"`
 	}
 
 	type sarifRun struct {
