@@ -30,7 +30,6 @@ func uploadFindings(rootPath, url, token string, noMeta bool, findings []core.Fi
 	}
 	env := uploadEnvelope{Tool: "redactyl", Version: version, Schema: uploadSchemaVersion, Findings: findings}
 	if !noMeta {
-		// Best-effort git metadata
 		repo, commit, branch := git.RepoMetadata(rootPath)
 		env.Repo, env.Commit, env.Branch = repo, commit, branch
 	}
@@ -58,8 +57,6 @@ func uploadFindings(rootPath, url, token string, noMeta bool, findings []core.Fi
 	return nil
 }
 
-// convertFindings adapts internal type to public facade type when needed.
-// Currently Finding is a type alias, but keep function for future decoupling.
 func convertFindings(in []types.Finding) []core.Finding {
 	out := make([]core.Finding, len(in))
 	for i := range in {

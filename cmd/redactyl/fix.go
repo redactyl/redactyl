@@ -41,7 +41,6 @@ func init() {
 				fmt.Fprintln(os.Stderr, strings.Join(cmdRm, " "))
 				fmt.Fprintln(os.Stderr, strings.Join(cmdCommit, " "))
 			} else {
-				// remove from index only
 				ctx, cancel := gitexec.WithTimeout(10 * time.Second)
 				defer cancel()
 				if err := gitexec.Git(ctx, "rm", "--cached", p); err != nil {
@@ -52,7 +51,6 @@ func init() {
 				}
 			}
 			if keepLocal {
-				// ensure file exists locally (rm --cached kept it on disk)
 				fmt.Fprintln(os.Stderr, "kept local working copy of", p)
 			}
 			if dryRun {
@@ -61,7 +59,6 @@ func init() {
 				fmt.Println("Committed removal of", p)
 			}
 			if summary != "" {
-				// write simple one-line summary JSON
 				_ = writeFixSummary(summary, map[string]any{
 					"action":    "fix.path",
 					"target":    p,
@@ -146,7 +143,6 @@ func init() {
 	redactCmd.Flags().StringVar(&summaryRedact, "summary", "", "write remediation summary JSON to this path")
 	fix.AddCommand(redactCmd)
 
-	// fix dotenv: create/update .env.example and optionally untrack .env
 	var srcDotenv string
 	var dstExample string
 	var keepValues bool
@@ -163,15 +159,12 @@ func init() {
 			if dstExample == "" {
 				dstExample = ".env.example"
 			}
-			// read source
 			content, err := os.ReadFile(srcDotenv)
 			if err != nil {
 				return fmt.Errorf("read %s: %w", srcDotenv, err)
 			}
-			// transform: strip values unless keepValues
 			lines := strings.Split(string(content), "\n")
 			for i, ln := range lines {
-				// ignore comments and blanks; scrub only KEY=VALUE lines
 				if strings.HasPrefix(strings.TrimSpace(ln), "#") || !strings.Contains(ln, "=") {
 					continue
 				}
@@ -233,7 +226,6 @@ func init() {
 	fix.AddCommand(dotenvCmd)
 }
 
-// writeFixSummary writes a JSON summary file for fix actions.
 func writeFixSummary(path string, data map[string]any) error {
 	f, err := os.Create(path)
 	if err != nil {

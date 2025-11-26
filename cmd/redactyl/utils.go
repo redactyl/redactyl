@@ -10,7 +10,6 @@ import (
 
 func selfUpdate() error {
 	v := version
-	// Use build info if tag overridden at build-time
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, s := range info.Settings {
 			if s.Key == "vcs.revision" && len(v) == 0 {
@@ -18,12 +17,10 @@ func selfUpdate() error {
 			}
 		}
 	}
-	// parse semantic version (strip leading v)
 	ver, err := semver.ParseTolerant(v)
 	if err != nil {
 		ver = semver.MustParse("0.0.0")
 	}
-	// Update from GitHub Releases: redactyl/redactyl
 	latest, err := selfupdate.UpdateSelf(semver3.MustParse(ver.String()), "redactyl/redactyl")
 	if err != nil {
 		return err

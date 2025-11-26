@@ -33,7 +33,6 @@ func init() {
 			if backup == "" {
 				backup = time.Now().Format("redactyl-backup-20060102-150405")
 			}
-			// commands we will run
 			commands := [][]string{
 				{"git", "branch", backup},
 				{"git", "filter-repo", "--path", args[0], "--invert-paths"},
@@ -74,7 +73,6 @@ func init() {
 	pathCmd.Flags().StringVar(&summary, "summary", "", "write remediation summary JSON to this path")
 	purge.AddCommand(pathCmd)
 
-	// purge pattern: remove paths by glob(s)
 	var globs []string
 	var dryRunPat bool
 	var summaryPat string
@@ -96,7 +94,6 @@ func init() {
 			if backupPat == "" {
 				backupPat = time.Now().Format("redactyl-backup-20060102-150405")
 			}
-			// compose command
 			cmdArgs := []string{"filter-repo"}
 			for _, g := range globs {
 				cmdArgs = append(cmdArgs, "--path-glob", g)
@@ -141,7 +138,6 @@ func init() {
 	patternCmd.Flags().StringVar(&backupPat, "backup-branch", "", "name of backup branch to create")
 	purge.AddCommand(patternCmd)
 
-	// purge replace: replace content using filter-repo replace-text file
 	var replFile string
 	var dryRunRepl bool
 	var summaryRepl string
@@ -206,7 +202,6 @@ func init() {
 	purge.AddCommand(replaceCmd)
 }
 
-// writePurgeSummary writes a JSON summary file for purge actions.
 func writePurgeSummary(path string, data map[string]any) error {
 	f, err := os.Create(path)
 	if err != nil {
