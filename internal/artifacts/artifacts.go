@@ -426,8 +426,6 @@ func keyLooksSensitive(k string) bool {
 	return false
 }
 
-// --- helpers ---
-
 func isArchivePath(path string) bool {
 	lower := strings.ToLower(path)
 	if strings.HasSuffix(lower, ".zip") || strings.HasSuffix(lower, ".tar") || strings.HasSuffix(lower, ".tgz") || strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".gz") {
@@ -737,7 +735,6 @@ func limitsExceededReason(l Limits, decompressed int64, entries int, depth int, 
 	return ""
 }
 
-// text heuristics similar to engine; small and fast
 func looksBinary(b []byte) bool {
 	const sniff = 800
 	if len(b) == 0 {
@@ -771,10 +768,6 @@ func looksNonTextMIME(path string, b []byte) bool {
 	return false
 }
 
-// --- kubeconfig helpers ---
-
-// tryExtractKubeconfig attempts to parse kubeconfig YAML and emit sensitive fields.
-// Returns true if any entries were emitted.
 func tryExtractKubeconfig(rel string, b []byte, emit func(path string, data []byte)) bool {
 	type userEntry struct {
 		Name string `yaml:"name"`
@@ -849,9 +842,6 @@ func looksLikeYAML(b []byte) bool {
 	return yamlDocRx.Find(b) != nil
 }
 
-// --- archive stats helpers (opt-in) ---
-
-// ScanArchivesWithStats mirrors ScanArchivesWithFilter but also records guardrail abort reasons into stats.
 func ScanArchivesWithStats(root string, limits Limits, allow PathAllowFunc, emit func(path string, data []byte), stats *Stats) error {
 	ign, _ := ignore.Load(filepath.Join(root, ".redactylignore"))
 	type item struct{ full, rel string }

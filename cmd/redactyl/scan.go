@@ -8,9 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/term"
+
+	"github.com/redactyl/redactyl/internal/audit"
+	"github.com/redactyl/redactyl/internal/cache"
 	"github.com/redactyl/redactyl/internal/config"
 	"github.com/redactyl/redactyl/internal/engine"
 	"github.com/redactyl/redactyl/internal/report"
+	"github.com/redactyl/redactyl/internal/tui"
 	"github.com/redactyl/redactyl/internal/types"
 	"github.com/redactyl/redactyl/internal/update"
 	"github.com/spf13/cobra"
@@ -32,7 +37,7 @@ var (
 	flagNoUploadMeta bool
 	flagTable        bool
 	flagText         bool
-	// deep scanning toggles and limits
+
 	flagArchives             bool
 	flagContainers           bool
 	flagIaC                  bool
@@ -43,8 +48,10 @@ var (
 	flagMaxDepth             int
 	flagScanTimeBudget       time.Duration
 	flagGlobalArtifactBudget time.Duration
-	// json shape
+
 	flagJSONExtended bool
+	flagNoTUI        bool
+	flagViewLast     bool
 )
 
 func init() {
@@ -56,6 +63,13 @@ func init() {
 	rootCmd.AddCommand(cmd)
 
 	cmd.Flags().StringVarP(&flagPath, "path", "p", ".", "path to scan")
+	cmd.Flags().BoolVar(&flagNoTUI, "no-tui", false, "disable interactive TUI mode (for CI/CD or piping output)")
+	cmd.Flags().BoolVar(&flagViewLast, "view-last", false, "view last scan results in TUI without rescanning")
+
+	// Backward compatibility: -i now does nothing (TUI is default), but keep flag to avoid breaking existing scripts
+	var flagInteractiveDeprecated bool
+	cmd.Flags().BoolVarP(&flagInteractiveDeprecated, "interactive", "i", false, "deprecated: TUI is now the default, use --no-tui to disable")
+	_ = cmd.Flags().MarkDeprecated("interactive", "TUI is now the default mode. Use --no-tui to disable it.")
 	cmd.Flags().BoolVar(&flagStaged, "staged", false, "scan staged changes")
 	cmd.Flags().IntVar(&flagHistory, "history", 0, "scan last N commits (0=off)")
 	cmd.Flags().StringVar(&flagBase, "base", "", "scan diff vs base branch (e.g. main)")
@@ -81,14 +95,10 @@ func init() {
 	cmd.Flags().IntVar(&flagMaxDepth, "max-depth", 2, "max recursion depth for nested archives")
 	cmd.Flags().DurationVar(&flagScanTimeBudget, "scan-time-budget", 10*time.Second, "time budget per artifact (e.g., 10s)")
 	cmd.Flags().DurationVar(&flagGlobalArtifactBudget, "global-artifact-budget", 0, "optional global time budget across all artifacts (e.g., 10s)")
-	// json shape
 	cmd.Flags().BoolVar(&flagJSONExtended, "json-extended", false, "when used with --json, include artifact stats in the JSON object; adds a schema_version field")
 }
 
-// resolveBudgets returns the effective per-artifact time budget and global artifact budget
-// by applying precedence rules: CLI > local > global.
 func resolveBudgets(flagBudget time.Duration, lcfg, gcfg config.FileConfig, flagGlobalBudget time.Duration) (time.Duration, time.Duration) {
-	// per-artifact
 	budget := flagBudget
 	if lcfg.ScanTimeBudget != nil {
 		if d, err := time.ParseDuration(*lcfg.ScanTimeBudget); err == nil {
@@ -99,7 +109,7 @@ func resolveBudgets(flagBudget time.Duration, lcfg, gcfg config.FileConfig, flag
 			budget = d
 		}
 	}
-	// global
+
 	globalBudget := flagGlobalBudget
 	if lcfg.GlobalArtifactBudget != nil {
 		if d, err := time.ParseDuration(*lcfg.GlobalArtifactBudget); err == nil {
@@ -155,7 +165,19 @@ func mergeGitleaksConfig(gcfg, lcfg config.FileConfig) config.GitleaksConfig {
 
 func runScan(cmd *cobra.Command, _ []string) error {
 	abs, _ := filepath.Abs(flagPath)
-	// Load configs: CLI > local > global
+
+	if flagViewLast {
+		results, err := cache.LoadResults(abs)
+		if err != nil {
+			return fmt.Errorf("no cached results found: %w\nRun a scan first with 'redactyl scan -i' to cache results", err)
+		}
+		baseline, _ := report.LoadBaseline("redactyl.baseline.json")
+		rescanFunc := func() ([]types.Finding, error) {
+			return nil, fmt.Errorf("rescan not available in view-only mode - exit and run 'redactyl scan -i' to rescan")
+		}
+		return tui.RunCachedWithBaseline(results.Findings, baseline, rescanFunc, results.Timestamp)
+	}
+
 	var gcfg, lcfg config.FileConfig
 	if c, err := config.LoadGlobal(); err == nil {
 		gcfg = c
@@ -164,7 +186,6 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		lcfg = c
 	}
 
-	// Resolve budgets with precedence: CLI > local > global
 	budget, globalBudget := resolveBudgets(flagScanTimeBudget, lcfg, gcfg, flagGlobalArtifactBudget)
 
 	cfg := engine.Config{
@@ -196,7 +217,6 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		GitleaksConfig:       mergeGitleaksConfig(gcfg, lcfg),
 	}
 
-	// Friendly banner before scanning
 	if !flagJSON && !flagSARIF {
 		if !flagNoUpdateCheck {
 			if latest, newer, _ := update.Check(version, false); newer && latest != "" {
@@ -213,7 +233,6 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		_, _ = fmt.Fprintf(os.Stderr, "Scanning %s with %d detectors...\n", abs, len(engine.DetectorIDs()))
 	}
 
-	// Optional progress bar: simple textual bar
 	total, _ := engine.CountTargets(cfg)
 	progressed := 0
 	if total > 0 && !flagJSON && !flagSARIF {
@@ -237,7 +256,86 @@ func runScan(cmd *cobra.Command, _ []string) error {
 	newFindings := report.FilterNewFindings(res.Findings, baseline)
 	if newFindings == nil {
 		newFindings = []types.Finding{}
-	} // no `null` in JSON
+	}
+
+	auditFindings := res.Findings
+	if len(res.Findings) == 0 {
+		if cached, err := cache.LoadResults(abs); err == nil && len(cached.Findings) > 0 {
+			auditFindings = cached.Findings
+			newFindings = report.FilterNewFindings(auditFindings, baseline)
+			if newFindings == nil {
+				newFindings = []types.Finding{}
+			}
+		}
+	}
+
+	auditLog := audit.NewAuditLog(abs)
+	auditRecord := audit.CreateScanRecord(
+		abs,
+		auditFindings,
+		newFindings,
+		res.FilesScanned,
+		res.Duration,
+		"redactyl.baseline.json",
+	)
+	if err := auditLog.LogScan(auditRecord); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to write audit log: %v\n", err)
+	}
+
+	useTUI := !flagNoTUI && !flagJSON && !flagSARIF
+	if useTUI && !isTerminal(os.Stdout) {
+		useTUI = false
+	}
+
+	if useTUI {
+		rescanFunc := func() ([]types.Finding, error) {
+			newCfg := cfg
+			newCfg.NoCache = true
+			newRes, err := engine.ScanWithStats(newCfg)
+			if err != nil {
+				return nil, err
+			}
+			if len(newRes.Findings) > 0 {
+				if err := cache.SaveResults(abs, newRes.Findings); err != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to cache results: %v\n", err)
+				}
+			}
+			return newRes.Findings, nil
+		}
+
+		findingsToShow := res.Findings
+		var cachedTime time.Time
+		viewingCached := false
+
+		if len(res.Findings) == 0 {
+			if cached, err := cache.LoadResults(abs); err == nil && len(cached.Findings) > 0 {
+				findingsToShow = cached.Findings
+				cachedTime = cached.Timestamp
+				viewingCached = true
+			}
+		} else {
+			if err := cache.SaveResults(abs, res.Findings); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to cache results: %v\n", err)
+			}
+		}
+
+		if viewingCached {
+			if err := tui.RunCachedWithBaseline(findingsToShow, baseline, rescanFunc, cachedTime); err != nil {
+				return err
+			}
+		} else {
+			if err := tui.RunWithBaseline(findingsToShow, baseline, rescanFunc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if len(res.Findings) > 0 {
+		if err := cache.SaveResults(abs, res.Findings); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to cache results: %v\n", err)
+		}
+	}
 
 	switch {
 	case flagSARIF:
@@ -277,13 +375,11 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		if flagGuide && len(newFindings) > 0 {
 			_, _ = fmt.Fprintln(os.Stderr, "\nSuggested remediation commands:")
 			for _, f := range newFindings {
-				// conservative guidance: if file looks like dotenv, suggest fix dotenv
 				lower := strings.ToLower(f.Path)
 				if strings.HasSuffix(lower, ".env") || strings.Contains(lower, ".env") {
 					_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix dotenv --from", f.Path, "--add-ignore --summary remediation.json")
 					continue
 				}
-				// otherwise suggest redact for the match span and path-based removal if binary/secret files
 				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
 		}
@@ -295,13 +391,11 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		if flagGuide && len(newFindings) > 0 {
 			_, _ = fmt.Fprintln(os.Stderr, "\nSuggested remediation commands:")
 			for _, f := range newFindings {
-				// conservative guidance: if file looks like dotenv, suggest fix dotenv
 				lower := strings.ToLower(f.Path)
 				if strings.HasSuffix(lower, ".env") || strings.Contains(lower, ".env") {
 					_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix dotenv --from", f.Path, "--add-ignore --summary remediation.json")
 					continue
 				}
-				// otherwise suggest redact for the match span and path-based removal if binary/secret files
 				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
 		}
@@ -309,18 +403,15 @@ func runScan(cmd *cobra.Command, _ []string) error {
 			_, _ = fmt.Fprintf(os.Stderr, "\nArtifact limits: bytes=%d entries=%d depth=%d time=%d\n", res.ArtifactStats.AbortedByBytes, res.ArtifactStats.AbortedByEntries, res.ArtifactStats.AbortedByDepth, res.ArtifactStats.AbortedByTime)
 		}
 	default:
-		// Default to table format now
 		report.PrintTable(os.Stdout, newFindings, report.PrintOptions{NoColor: flagNoColor, Duration: res.Duration, FilesScanned: res.FilesScanned, TotalFiles: total, TotalFindings: len(res.Findings)})
 		if flagGuide && len(newFindings) > 0 {
 			_, _ = fmt.Fprintln(os.Stderr, "\nSuggested remediation commands:")
 			for _, f := range newFindings {
-				// conservative guidance: if file looks like dotenv, suggest fix dotenv
 				lower := strings.ToLower(f.Path)
 				if strings.HasSuffix(lower, ".env") || strings.Contains(lower, ".env") {
 					_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix dotenv --from", f.Path, "--add-ignore --summary remediation.json")
 					continue
 				}
-				// otherwise suggest redact for the match span and path-based removal if binary/secret files
 				_, _ = fmt.Fprintln(os.Stderr, "  redactyl fix redact --file", f.Path, "--pattern", "'"+regexpQuote(f.Match)+"'", "--replace '<redacted>' --summary remediation.json")
 			}
 		}
@@ -329,7 +420,6 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Optional upload step: do not fail the scan on upload errors
 	if flagUploadURL != "" {
 		if err := uploadFindings(abs, flagUploadURL, flagUploadToken, flagNoUploadMeta, convertFindings(newFindings)); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, "upload warning:", err)
@@ -346,11 +436,13 @@ func runScan(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// minimal regexp quoting to embed a literal in a single-quoted shell arg
 func regexpQuote(s string) string {
-	// escape backslashes and special regex meta. Keep it simple.
 	replacer := strings.NewReplacer(`\`, `\\`, `.`, `\.`, `*`, `\*`, `+`, `\+`, `?`, `\?`, `(`, `\(`, `)`, `\)`, `[`, `\[`, `]`, `\]`, `{`, `\{`, `}`, `\}`, `^`, `\^`, `$`, `\$`, `|`, `\|`)
 	return replacer.Replace(s)
+}
+
+func isTerminal(f *os.File) bool {
+	return term.IsTerminal(int(f.Fd()))
 }
 
 func activeSetSummary(cfg engine.Config) string {

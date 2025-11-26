@@ -38,7 +38,6 @@ func IsK8sManifest(path string) bool {
 		return false
 	}
 
-	// Check for common k8s patterns in filename
 	lower := strings.ToLower(filepath.Base(path))
 	k8sPatterns := []string{
 		"deployment", "service", "configmap", "secret",
@@ -52,7 +51,6 @@ func IsK8sManifest(path string) bool {
 		}
 	}
 
-	// Try to parse as YAML and check for apiVersion/kind
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return false
@@ -102,11 +100,8 @@ func ParseK8sResources(path string) ([]*K8sResource, error) {
 			break
 		}
 		if err != nil {
-			// Skip invalid documents
 			continue
 		}
-
-		// Only include valid K8s resources
 		if resource.APIVersion != "" && resource.Kind != "" {
 			resources = append(resources, &resource)
 		}
@@ -142,18 +137,15 @@ func ScanK8sManifestsWithFilter(root string, limits Limits, allow PathAllowFunc,
 			return nil
 		}
 
-		// Check if this looks like a K8s manifest
 		if !isK8sManifestFile(rel) {
 			return nil
 		}
 
-		// Read and emit the file
 		data, err := os.ReadFile(p)
 		if err != nil {
-			return nil // Skip on error
+			return nil
 		}
 
-		// Verify it's actually a K8s resource
 		if containsK8sResource(data) {
 			emit(rel, data)
 		}
@@ -162,16 +154,13 @@ func ScanK8sManifestsWithFilter(root string, limits Limits, allow PathAllowFunc,
 	})
 }
 
-// isK8sManifestFile checks if a filename suggests it might be a K8s manifest
 func isK8sManifestFile(path string) bool {
 	lower := strings.ToLower(path)
 
-	// Must be YAML
 	if !strings.HasSuffix(lower, ".yaml") && !strings.HasSuffix(lower, ".yml") {
 		return false
 	}
 
-	// Check for K8s-related directories
 	k8sDirs := []string{
 		"k8s/", "kubernetes/", "manifests/", ".k8s/",
 		"deploy/", "deployment/", "kube/",
@@ -182,7 +171,6 @@ func isK8sManifestFile(path string) bool {
 		}
 	}
 
-	// Check for K8s-related filenames
 	base := filepath.Base(lower)
 	k8sPatterns := []string{
 		"deployment", "service", "configmap", "secret",
@@ -200,20 +188,17 @@ func isK8sManifestFile(path string) bool {
 	return false
 }
 
-// containsK8sResource checks if YAML data contains a valid K8s resource
 func containsK8sResource(data []byte) bool {
-	// Quick check for common K8s fields
 	content := string(data)
 	return strings.Contains(content, "apiVersion") &&
 		strings.Contains(content, "kind") &&
 		(strings.Contains(content, "metadata") || strings.Contains(content, "spec"))
 }
 
-// IsSensitiveK8sResource checks if a resource type typically contains secrets
 func IsSensitiveK8sResource(resource *K8sResource) bool {
 	sensitiveKinds := []string{
 		"Secret",
-		"ConfigMap", // Can contain sensitive data
+		"ConfigMap",
 	}
 
 	for _, kind := range sensitiveKinds {
@@ -222,17 +207,15 @@ func IsSensitiveK8sResource(resource *K8sResource) bool {
 		}
 	}
 
-	// Check for secrets in pod specs
 	if resource.Kind == "Pod" || resource.Kind == "Deployment" ||
 		resource.Kind == "StatefulSet" || resource.Kind == "DaemonSet" ||
 		resource.Kind == "Job" || resource.Kind == "CronJob" {
-		return true // These can have env vars with secrets
+		return true
 	}
 
 	return false
 }
 
-// ExtractK8sMetadata extracts useful metadata from a K8s resource for reporting
 func ExtractK8sMetadata(resource *K8sResource) map[string]string {
 	metadata := make(map[string]string)
 
@@ -252,12 +235,9 @@ func ExtractK8sMetadata(resource *K8sResource) map[string]string {
 	return metadata
 }
 
-// FindSecretsInResource searches for likely secret fields in a K8s resource
-// Returns paths to fields that might contain secrets
 func FindSecretsInResource(resource *K8sResource) []string {
 	var secretPaths []string
 
-	// Check Secret resource data fields
 	if resource.Kind == "Secret" {
 		for key := range resource.Data {
 			secretPaths = append(secretPaths, fmt.Sprintf("data.%s", key))
@@ -267,7 +247,6 @@ func FindSecretsInResource(resource *K8sResource) []string {
 		}
 	}
 
-	// Check ConfigMap for potential secrets (common mistake)
 	if resource.Kind == "ConfigMap" {
 		for key := range resource.Data {
 			lower := strings.ToLower(key)

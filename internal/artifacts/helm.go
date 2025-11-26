@@ -62,12 +62,10 @@ func IsHelmChart(path string) bool {
 		return false
 	}
 
-	// Check if it's a .tgz archive
 	if !info.IsDir() && strings.HasSuffix(strings.ToLower(path), ".tgz") {
 		return true
 	}
 
-	// Check if it's a directory with Chart.yaml
 	if info.IsDir() {
 		chartPath := filepath.Join(path, "Chart.yaml")
 		if _, err := os.Stat(chartPath); err == nil {
@@ -135,12 +133,10 @@ func ScanHelmChartsWithFilter(root string, limits Limits, allow PathAllowFunc, e
 			return nil
 		}
 
-		// Check for .tgz Helm chart archives
 		if !d.IsDir() && strings.HasSuffix(strings.ToLower(rel), ".tgz") {
 			return scanHelmArchive(p, rel, limits, emit)
 		}
 
-		// Check for unpacked Helm chart directories (contain Chart.yaml)
 		if d.IsDir() {
 			chartPath := filepath.Join(p, "Chart.yaml")
 			if _, err := os.Stat(chartPath); err == nil {
@@ -176,22 +172,16 @@ func scanHelmArchive(archivePath, relPath string, limits Limits, emit func(path 
 			return nil
 		}
 
-		// Skip directories
 		if hdr.FileInfo().IsDir() {
 			continue
 		}
 
 		name := hdr.Name
-
-		// Scan interesting files in the chart
 		if shouldScanHelmFile(name) {
-			// Read file content
 			data, err := io.ReadAll(io.LimitReader(tr, limits.MaxArchiveBytes))
 			if err != nil {
 				continue
 			}
-
-			// Build virtual path
 			vpath := relPath + "::" + name
 			emit(vpath, data)
 		}
@@ -200,26 +190,20 @@ func scanHelmArchive(archivePath, relPath string, limits Limits, emit func(path 
 	return nil
 }
 
-// scanHelmDirectory scans an unpacked Helm chart directory
 func scanHelmDirectory(chartDir, relPath string, limits Limits, emit func(path string, data []byte)) error {
-	// Scan templates directory
 	templatesDir := filepath.Join(chartDir, "templates")
 	if info, err := os.Stat(templatesDir); err == nil && info.IsDir() {
 		_ = filepath.WalkDir(templatesDir, func(p string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return nil
 			}
-
-			// Only scan YAML files in templates
 			if !strings.HasSuffix(strings.ToLower(p), ".yaml") && !strings.HasSuffix(strings.ToLower(p), ".yml") {
 				return nil
 			}
-
 			data, err := os.ReadFile(p)
 			if err != nil {
 				return nil
 			}
-
 			rel, _ := filepath.Rel(chartDir, p)
 			vpath := relPath + "::" + rel
 			emit(vpath, data)
@@ -227,7 +211,6 @@ func scanHelmDirectory(chartDir, relPath string, limits Limits, emit func(path s
 		})
 	}
 
-	// Scan values files
 	for _, valuesFile := range []string{"values.yaml", "values.yml"} {
 		valuesPath := filepath.Join(chartDir, valuesFile)
 		if data, err := os.ReadFile(valuesPath); err == nil {
@@ -236,7 +219,6 @@ func scanHelmDirectory(chartDir, relPath string, limits Limits, emit func(path s
 		}
 	}
 
-	// Scan Chart.yaml
 	chartYAML := filepath.Join(chartDir, "Chart.yaml")
 	if data, err := os.ReadFile(chartYAML); err == nil {
 		vpath := relPath + "::" + "Chart.yaml"
@@ -246,34 +228,25 @@ func scanHelmDirectory(chartDir, relPath string, limits Limits, emit func(path s
 	return nil
 }
 
-// shouldScanHelmFile determines if a file in a Helm chart should be scanned
 func shouldScanHelmFile(name string) bool {
 	lower := strings.ToLower(name)
 
-	// Always scan values files
 	if strings.HasSuffix(lower, "/values.yaml") || strings.HasSuffix(lower, "/values.yml") {
 		return true
 	}
-
-	// Always scan Chart.yaml
 	if strings.HasSuffix(lower, "/chart.yaml") || strings.HasSuffix(lower, "/chart.yml") {
 		return true
 	}
-
-	// Scan template files
 	if strings.Contains(lower, "/templates/") {
 		if strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml") {
 			return true
 		}
 	}
-
-	// Scan secrets and configmaps
 	if strings.Contains(lower, "secret") || strings.Contains(lower, "configmap") {
 		if strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml") {
 			return true
 		}
 	}
-
 	return false
 }
 

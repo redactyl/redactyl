@@ -30,6 +30,8 @@ Secrets don't just live in Git history - they hide in **container images, Helm c
 - [Deep scanning](#deep-scanning)
 - [How detection works](#how-detection-works)
 - [Filtering results](#filtering-results)
+- [Interactive TUI](#interactive-tui)
+- [Audit logging](#audit-logging)
 - [Baseline](#baseline)
 - [.redactylignore](#redactylignore)
 - [Remediation](#remediation)
@@ -79,34 +81,48 @@ export PATH="$PWD/bin:$PATH"
 
 ## Quick start
 
-Default scan:
+Interactive scan (default - opens TUI):
 
 ```sh
 redactyl scan
 ```
 
+The TUI provides:
+- Real-time findings with severity color-coding
+- Vim-style navigation with search, filter, and grouping
+- Syntax-highlighted context preview
+- Quick actions: open in editor, baseline, ignore, export
+- Virtual file extraction from archives
+- Diff view to compare scans
+
+Non-interactive scan (for CI/CD):
+
+```sh
+redactyl scan --no-tui
+```
+
 With guidance (suggested remediation commands):
 
 ```sh
-redactyl scan --guide
+redactyl scan --guide --no-tui
 ```
 
 JSON output:
 
 ```sh
-redactyl scan --json
+redactyl scan --json  # Auto-disables TUI
 ```
 
 SARIF output:
 
 ```sh
-redactyl scan --sarif > redactyl.sarif.json
+redactyl scan --sarif > redactyl.sarif.json  # Auto-disables TUI
 ```
 
 Text‑only format:
 
 ```sh
-redactyl scan --text
+redactyl scan --text --no-tui
 ```
 
 Scope control:
@@ -309,6 +325,164 @@ redactyl detectors
 
 **Note:** These flags filter results after scanning. To configure Gitleaks rules themselves, use a `.gitleaks.toml` file (see [How detection works](#how-detection-works)).
 
+## Interactive TUI
+
+Redactyl provides a rich terminal user interface (TUI) for interactive secret scanning and management.
+
+### Features
+
+- **Visual findings table** - Color-coded severity (High/Medium/Low)
+- **Detailed view** - Full context with syntax highlighting
+- **Quick actions:**
+  - `o` / `Enter` - Open file in `$EDITOR` at exact line and column
+  - `i` / `I` - Add/remove file from `.redactylignore`
+  - `b` / `U` - Add/remove finding from baseline
+  - `r` - Rescan (fresh scan without cache)
+  - `e` - Export current view (JSON/CSV/SARIF)
+  - `y` / `Y` - Copy path / full details to clipboard
+- **Navigation:**
+  - `j` / `k` - Move through findings
+  - `Ctrl+d` / `Ctrl+u` - Half-page down/up
+  - `g` / `G` - Jump to top/bottom
+  - `n` / `N` - Jump to next/previous HIGH severity finding
+- **Search & Filter:**
+  - `/` - Search by path, detector, or match text
+  - `1` / `2` / `3` - Filter by HIGH/MED/LOW severity
+  - `s` / `S` - Cycle sort column / reverse sort
+  - `Esc` - Clear all filters
+- **Grouping:**
+  - `gf` - Group findings by file path
+  - `gd` - Group findings by detector type
+  - `Tab` - Expand/collapse groups
+- **Selection & Bulk:**
+  - `v` - Toggle selection on current finding
+  - `V` - Select/deselect all visible findings
+  - `B` - Bulk baseline all selected
+  - `Ctrl+i` - Bulk ignore all selected files
+- **Context:**
+  - `+` / `-` - Show more/fewer context lines around finding
+  - Git commit info displayed when available
+- **Diff View:**
+  - `D` - Compare current scan vs previous scan
+  - Shows new findings (red) and fixed findings (green)
+- **Virtual Files:**
+  - Findings inside archives show file breakdown
+  - Press `o` to extract to temp and open in editor
+- **Scan History:**
+  - `a` - View audit log history
+  - Load and review previous scans
+
+### Usage
+
+The TUI opens automatically by default:
+
+```sh
+redactyl scan
+```
+
+To disable (for scripts/CI/CD):
+
+```sh
+redactyl scan --no-tui
+```
+
+View last scan results without rescanning:
+
+```sh
+redactyl scan --view-last
+```
+
+The TUI automatically disables when:
+- Output is piped: `redactyl scan | grep something`
+- `--json` or `--sarif` flags are used
+- stdout is not a terminal
+
+### Keyboard shortcuts
+
+Press `?` or `h` in the TUI to see all keyboard shortcuts.
+
+## Audit logging
+
+Redactyl automatically maintains an audit log of all scans for compliance and reporting purposes.
+
+### Log location
+
+- `.git/redactyl_audit.jsonl` (if in a Git repository)
+- `.redactyl_audit.jsonl` (otherwise)
+
+### Log format
+
+JSON Lines format (one JSON object per line) for easy parsing:
+
+```json
+{
+  "timestamp": "2025-11-24T15:41:43.103433-07:00",
+  "scan_id": "scan_1764024103",
+  "root": "/Users/user/project",
+  "total_findings": 130,
+  "new_findings": 12,
+  "baselined_count": 118,
+  "severity_counts": {
+    "high": 116,
+    "medium": 13,
+    "low": 1
+  },
+  "files_scanned": 163,
+  "duration": "302ms",
+  "baseline_file": "redactyl.baseline.json",
+  "top_findings": [
+    {
+      "path": "cmd/app/main.go",
+      "detector": "generic-api-key",
+      "severity": "high",
+      "line": 42
+    }
+  ]
+}
+```
+
+### Usage for auditing
+
+View all audit logs:
+
+```sh
+cat .git/redactyl_audit.jsonl | jq .
+```
+
+Count total scans:
+
+```sh
+wc -l .git/redactyl_audit.jsonl
+```
+
+Filter scans with high-severity findings:
+
+```sh
+cat .git/redactyl_audit.jsonl | jq 'select(.severity_counts.high > 0)'
+```
+
+Export for compliance report:
+
+```sh
+cp .git/redactyl_audit.jsonl audit_trail_$(date +%Y%m%d).jsonl
+```
+
+Generate summary report:
+
+```sh
+cat .git/redactyl_audit.jsonl | jq -r '[.timestamp, .total_findings, .new_findings] | @csv'
+```
+
+### Benefits
+
+- **Immutable trail** - Append-only log ensures scan history is preserved
+- **Compliance ready** - Structured format suitable for SOC2, ISO 27001, and other audits
+- **Timestamped** - Every scan recorded with precise timestamp
+- **Severity tracking** - Monitor high/medium/low findings over time
+- **Baseline tracking** - Shows which findings are accepted vs new
+- **Sample findings** - Top 10 new findings included for quick reference
+- **Performance metrics** - Duration and files scanned tracked
+
 ## How detection works
 
 Redactyl uses Gitleaks as its detection engine, enhanced with artifact-aware intelligence:
@@ -393,9 +567,16 @@ jobs:
           go-version: 'stable'
       - run: go build -o bin/redactyl .
       - run: ./bin/redactyl scan --sarif --archives --global-artifact-budget 15s > redactyl.sarif.json
+        # Note: --sarif automatically disables TUI, but --no-tui can be explicit
       - uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: redactyl.sarif.json
+      - name: Upload audit log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: redactyl-audit-log
+          path: .git/redactyl_audit.jsonl
 ```
 
 ## Pre-commit hook

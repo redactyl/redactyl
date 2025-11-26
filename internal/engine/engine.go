@@ -185,23 +185,19 @@ type DeepStats struct {
 func ScanWithStats(cfg Config) (Result, error) {
 	var result Result
 
-	// Initialize scanner
 	scnr, err := initializeScanner(cfg)
 	if err != nil {
 		return result, fmt.Errorf("failed to initialize scanner: %w", err)
 	}
 
-	// Load incremental cache if available
 	var db cache.DB
 	if !cfg.NoCache {
 		db, _ = cache.Load(cfg.Root)
 	} else {
 		db.Entries = map[string]string{}
 	}
-	// collect updated hashes to persist once at end
 	updated := map[string]string{}
 
-	// Normalize threads for internal use
 	if cfg.Threads <= 0 {
 		cfg.Threads = runtime.GOMAXPROCS(0)
 	}
@@ -215,35 +211,30 @@ func ScanWithStats(cfg Config) (Result, error) {
 		out = append(out, fs...)
 	}
 
-	// Phase 1: Working Tree (Standard)
 	if cfg.HistoryCommits == 0 && cfg.BaseBranch == "" {
 		if err := scanFilesystem(ctx, cfg, scnr, ign, db, emit, updated, &result); err != nil {
 			return result, err
 		}
 	}
 
-	// Phase 2: Staged Changes
 	if cfg.ScanStaged {
 		if err := scanStaged(cfg, scnr, emit, updated, &result); err != nil {
 			return result, err
 		}
 	}
 
-	// Phase 3: Git History
 	if cfg.HistoryCommits > 0 {
 		if err := scanHistory(cfg, scnr, ign, emit, updated, &result); err != nil {
 			return result, err
 		}
 	}
 
-	// Phase 4: Diff vs Base
 	if cfg.BaseBranch != "" {
 		if err := scanDiff(cfg, scnr, ign, emit, updated, &result); err != nil {
 			return result, err
 		}
 	}
 
-	// Phase 5: Deep Artifact Scanning
 	if cfg.ScanArchives || cfg.ScanContainers || cfg.ScanIaC || cfg.ScanHelm || cfg.ScanK8s {
 		if err := scanArtifacts(cfg, scnr, emit, updated, &result); err != nil {
 			return result, err
@@ -252,7 +243,6 @@ func ScanWithStats(cfg Config) (Result, error) {
 
 	result.Findings = out
 	result.Duration = time.Since(started)
-	// Save cache best-effort
 	if !cfg.NoCache && len(updated) > 0 {
 		if db.Entries == nil {
 			db.Entries = map[string]string{}
@@ -274,7 +264,6 @@ func scanFilesystem(ctx context.Context, cfg Config, scnr scanner.Scanner, ign i
 		if walkErr != nil {
 			return
 		}
-		// compute cheap content hash; small overhead but enables skipping next run
 		h := fastHash(data)
 		if !cfg.NoCache && db.Entries != nil && db.Entries[p] == h {
 			return
@@ -422,7 +411,6 @@ func scanArtifacts(cfg Config, scnr scanner.Scanner, emit func([]types.Finding),
 		TimeBudget:      cfg.ScanTimeBudget,
 		Workers:         cfg.Threads,
 	}
-	// Establish a global deadline across all artifacts if a global time budget is provided
 	if cfg.GlobalArtifactBudget > 0 {
 		lim.GlobalDeadline = time.Now().Add(cfg.GlobalArtifactBudget)
 	}
@@ -461,7 +449,6 @@ func scanArtifacts(cfg Config, scnr scanner.Scanner, emit func([]types.Finding),
 			flushArtifacts()
 		}
 	}
-	// Reuse include/exclude globs to filter which artifact filenames are processed
 	allowArtifact := func(rel string) bool { return allowedByGlobs(rel, cfg) }
 	var artStats artifacts.Stats
 
@@ -503,13 +490,11 @@ func scanArtifacts(cfg Config, scnr scanner.Scanner, emit func([]types.Finding),
 	return nil
 }
 
-// fastHash returns a short hex digest for quick change detection.
 func fastHash(b []byte) string {
 	if len(b) == 0 {
 		return "0000000000000000"
 	}
 	sum := xxhash.Sum64(b)
-	// fixed-width lower-hex for stable cache keys
 	var buf [16]byte
 	const hex = "0123456789abcdef"
 	for i := 15; i >= 0; i-- {
@@ -591,7 +576,6 @@ func parseGlobsList(s string) []string {
 		p = strings.TrimSpace(p)
 		if p != "" {
 			out = append(out, p)
-			// add variant without leading "./" and "**/" so patterns like "**/*.go" also match top-level files
 			out = append(out, trimGlobPrefix(p))
 		}
 	}
@@ -603,7 +587,6 @@ func matchAnyGlob(pathToMatch string, globs []string) bool {
 		if ok, _ := doublestar.Match(g, pathToMatch); ok {
 			return true
 		}
-		// Also try against basename for simple patterns like "*.go"
 		if ok, _ := doublestar.Match(g, filepath.Base(pathToMatch)); ok {
 			return true
 		}
@@ -619,8 +602,6 @@ func trimGlobPrefix(g string) string {
 	return s
 }
 
-// initializeScanner creates a scanner instance from configuration.
-// It uses the scanner factory to create the appropriate scanner.
 func initializeScanner(cfg Config) (scanner.Scanner, error) {
 	return factory.New(factory.Config{
 		Root:           cfg.Root,
