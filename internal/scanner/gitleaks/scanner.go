@@ -138,7 +138,6 @@ func (s *Scanner) ScanBatch(inputs []scanner.BatchInput) ([]types.Finding, error
 			return nil, fmt.Errorf("failed to write temp file: %w", err)
 		}
 
-		// Record context by both absolute and relative path (gitleaks may emit either)
 		fileContexts[filename] = ctx
 		fileContexts[fullPath] = ctx
 		if !strings.HasPrefix(filename, "./") {
@@ -207,7 +206,6 @@ func (s *Scanner) ScanBatch(inputs []scanner.BatchInput) ([]types.Finding, error
 			}
 		}
 		if !ok {
-			// Unknown file path; fall back to bare context
 			ctx = normalizeContext(scanner.ScanContext{}, gf.File)
 		}
 		findings = append(findings, s.convertFindings([]GitleaksFinding{gf}, ctx)...)
@@ -344,12 +342,9 @@ func (s *Scanner) convertFindings(gf []GitleaksFinding, ctx scanner.ScanContext)
 			Metadata:   make(map[string]string),
 		}
 
-		// Copy context metadata
 		for k, v := range ctx.Metadata {
 			finding.Metadata[k] = v
 		}
-
-		// Add gitleaks-specific metadata
 		finding.Metadata["gitleaks_rule_id"] = f.RuleID
 		if f.Commit != "" {
 			finding.Metadata["commit"] = f.Commit
@@ -385,19 +380,10 @@ type GitleaksFinding struct {
 	Fingerprint string   `json:"Fingerprint,omitempty"`
 }
 
-// mapGitleaksToConfidence maps Gitleaks findings to a confidence score.
-// Gitleaks doesn't provide confidence scores, so we use heuristics:
-// - High entropy findings are generally less reliable (more false positives)
-// - Rules with specific formats/prefixes are more reliable
-// - Default to 0.8 as a reasonable baseline
 func mapGitleaksToConfidence(f GitleaksFinding) float64 {
-	// Start with default confidence
 	confidence := 0.8
 
-	// Entropy-based findings are less reliable
 	if f.Entropy > 0 {
-		// Higher entropy = lower confidence
-		// Typical entropy range: 3.0-5.0 for real secrets
 		switch {
 		case f.Entropy > 4.5:
 			confidence = 0.9
@@ -408,8 +394,6 @@ func mapGitleaksToConfidence(f GitleaksFinding) float64 {
 		}
 	}
 
-	// Specific rule patterns are more reliable
-	// These are common high-confidence patterns from Gitleaks
 	highConfidenceRules := []string{
 		"aws-access-token",
 		"github-pat",
@@ -431,14 +415,7 @@ func mapGitleaksToConfidence(f GitleaksFinding) float64 {
 	return confidence
 }
 
-// DetectConfigPath searches for a .gitleaks.toml file in common locations.
-// Returns empty string if not found.
 func DetectConfigPath(repoRoot string) string {
-	// Search order:
-	// 1. Repo root
-	// 2. .gitleaks/ subdirectory
-	// 3. .github/ subdirectory (common location)
-
 	candidates := []string{
 		filepath.Join(repoRoot, ".gitleaks.toml"),
 		filepath.Join(repoRoot, ".gitleaks", "config.toml"),
@@ -454,11 +431,6 @@ func DetectConfigPath(repoRoot string) string {
 	return ""
 }
 
-// mapConfidenceToSeverity maps a confidence score to a severity level.
-// This follows the Redactyl convention:
-// - High confidence (0.9+) -> High severity
-// - Medium confidence (0.7-0.9) -> Medium severity
-// - Low confidence (< 0.7) -> Low severity
 func mapConfidenceToSeverity(confidence float64) types.Severity {
 	switch {
 	case confidence >= 0.9:
@@ -470,7 +442,6 @@ func mapConfidenceToSeverity(confidence float64) types.Severity {
 	}
 }
 
-// contains is a simple helper to check if a string contains a substring (case-insensitive).
 func contains(s, substr string) bool {
 	return bytes.Contains([]byte(strings.ToLower(s)), []byte(strings.ToLower(substr)))
 }
