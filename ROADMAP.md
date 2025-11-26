@@ -115,19 +115,18 @@ We're building a **specialized artifact scanner** that finds secrets in the comp
 **Goal:** Scan images in registries without pulling
 
 **Deliverables:**
-- [ ] Registry connector framework
+- [x] Registry connector framework
   - Docker Hub API integration
   - Google Container Registry (GCR)
   - AWS Elastic Container Registry (ECR)
   - Azure Container Registry (ACR)
-- [ ] Efficient scanning
+- [x] Efficient scanning
   - Stream layers via registry API
-  - Cache layer scans (content-addressed)
+  - Cache layer scans (content-addressed) - *Moved to Enterprise*
   - Parallel multi-image scanning
-- [ ] CLI commands
-  - `redactyl scan-registry gcr.io/myproject/*`
-  - `redactyl scan-image myapp:latest --registry`
-  - Wildcard tag support
+- [x] CLI commands
+  - `redactyl scan --registry gcr.io/myproject/image:tag`
+  - Wildcard tag support (partial)
 
 **Success Metrics:**
 - Scan 100-image registry in < 10 minutes
