@@ -16,7 +16,7 @@ func withTempDir(t *testing.T, fn func(dir string)) {
 	if err != nil {
 		t.Fatalf("Failed to get current wd: %v", err)
 	}
-	
+
 	if err := os.Chdir(dir); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestIgnoreFile(t *testing.T) {
 		if cmd == nil {
 			t.Fatal("Expected command from ignoreFile")
 		}
-		
+
 		// Run the command (it returns a statusMsg)
 		cmd()
 
@@ -95,7 +95,7 @@ func TestAddToBaseline(t *testing.T) {
 		// Test removeFromBaseline
 		// We need to set up the model with knowledge that it is baselined
 		m.baselinedSet = map[string]bool{key: true}
-		
+
 		cmd = m.removeFromBaseline()
 		cmd()
 
@@ -116,7 +116,7 @@ func TestBulkActions(t *testing.T) {
 			{Path: "f2.go", Detector: "d", Match: "m2"},
 		}
 		m := NewModel(findings, nil)
-		
+
 		// Select both
 		m.selectedFindings[0] = true
 		m.selectedFindings[1] = true
@@ -173,7 +173,7 @@ func TestExportFindings(t *testing.T) {
 		cmd := m.exportFindings("json")
 		msg := cmd() // Run command
 		status := msg.(statusMsg)
-		
+
 		if string(status) == "Export error" {
 			t.Error("Export returned error")
 		}
@@ -213,15 +213,15 @@ func TestExportFindings(t *testing.T) {
 
 func TestVirtualPathExtraction(t *testing.T) {
 	// This tests the helpers logic without full integration
-	// We are testing parsing logic primarily here as actual extraction 
+	// We are testing parsing logic primarily here as actual extraction
 	// requires valid archives which is harder to mock without fixtures
-	
+
 	// Test parsing
 	archive, internal := parseVirtualPath("foo.zip::bar.txt")
 	if archive != "foo.zip" || internal != "bar.txt" {
 		t.Errorf("Failed to parse virtual path: %s, %s", archive, internal)
 	}
-	
+
 	// Test nested parsing
 	archive, internal = parseVirtualPath("outer.zip::inner.tar::file.txt")
 	if archive != "outer.zip" || internal != "inner.tar::file.txt" {
@@ -233,21 +233,21 @@ func TestOpenEditor(t *testing.T) {
 	// We can't easily test opening an actual editor, but we can test the command generation logic
 	// if we extract it. Since it's inside the method, we'll test that it returns a command
 	// and doesn't crash.
-	
+
 	findings := []types.Finding{{Path: "file.go", Line: 10}}
 	m := NewModel(findings, nil)
 	m.table.SetCursor(0)
-	
+
 	cmd := m.openEditor()
 	if cmd == nil {
 		t.Error("openEditor should return a command")
 	}
-	
+
 	// Test virtual file opening
 	findings = []types.Finding{{Path: "archive.zip::file.txt"}}
 	m = NewModel(findings, nil)
 	m.table.SetCursor(0)
-	
+
 	cmd = m.openEditor()
 	if cmd == nil {
 		t.Error("openEditor (virtual) should return a command")
@@ -260,12 +260,12 @@ func TestCopyClipboard(t *testing.T) {
 	findings := []types.Finding{{Path: "file.go"}}
 	m := NewModel(findings, nil)
 	m.table.SetCursor(0)
-	
+
 	cmd := m.copyPathToClipboard()
 	if cmd == nil {
 		t.Error("copyPathToClipboard should return a command")
 	}
-	
+
 	cmd = m.copyFindingToClipboard()
 	if cmd == nil {
 		t.Error("copyFindingToClipboard should return a command")

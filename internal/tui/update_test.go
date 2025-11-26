@@ -188,7 +188,7 @@ func TestUpdate_Sort(t *testing.T) {
 
 	// Press 's' to cycle sort
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")}
-	
+
 	// Default -> Severity
 	updatedModel, _ := m.Update(msg)
 	m = updatedModel.(Model)
@@ -202,7 +202,7 @@ func TestUpdate_Sort(t *testing.T) {
 	if m.sortColumn != SortPath {
 		t.Errorf("Expected sort column %s, got %s", SortPath, m.sortColumn)
 	}
-	
+
 	// Verify it's sorted by path
 	display := m.getDisplayFindings()
 	if display[0].Path != "a.go" {
@@ -213,7 +213,7 @@ func TestUpdate_Sort(t *testing.T) {
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("S")}
 	updatedModel, _ = m.Update(msg)
 	m = updatedModel.(Model)
-	
+
 	if !m.sortReverse {
 		t.Error("Expected sort reverse to be true")
 	}
@@ -245,8 +245,8 @@ func TestUpdate_Selection(t *testing.T) {
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("V")}
 	updatedModel, _ = m.Update(msg)
 	m = updatedModel.(Model)
-	
-	// Since one was already selected, 'V' might toggle. 
+
+	// Since one was already selected, 'V' might toggle.
 	// The logic is: if all are selected -> deselect all, else select all.
 	// Here only 1/2 selected, so should select all (2).
 	if m.getSelectedCount() != 2 {
@@ -326,15 +326,8 @@ func TestUpdate_Rescan(t *testing.T) {
 	}
 
 	// Execute the command (simulated)
-	resultMsg := cmd()
-	if _, ok := resultMsg.(findingsMsg); !ok && !rescanCalled {
-		// The anonymous function in rescan returns findingsMsg on success,
-		// which calls rescanFunc.
-		// We can't easily check rescanCalled because it happens inside the cmd execution
-		// which is a closure.
-		// However, if we execute the command returned:
-	}
-	
+	_ = cmd()
+
 	if !rescanCalled {
 		t.Error("rescanFunc was not called")
 	}
