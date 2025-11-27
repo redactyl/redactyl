@@ -67,8 +67,11 @@ func ScanRegistryImage(imageRef string, limits Limits, emit func(path string, da
 
 		// Use the shared tar scanner from artifacts.go
 		// We pass depth=1 because the layer itself is "inside" the image
-		_ = scanTarReaderJoin(vp, "/", limits, &decompressed, &entries, 1, deadline, emit, rc)
+		err = scanTarReaderJoin(vp, "/", limits, &decompressed, &entries, 1, deadline, emit, rc)
 		safeClose(rc)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

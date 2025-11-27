@@ -44,8 +44,8 @@ type Config struct {
 	ScanArchives         bool
 	ScanContainers       bool
 	ScanIaC              bool
-	ScanHelm             bool // Scan Helm charts
-	ScanK8s              bool // Scan Kubernetes manifests
+	ScanHelm             bool     // Scan Helm charts
+	ScanK8s              bool     // Scan Kubernetes manifests
 	RegistryImages       []string // Remote registry images to scan (e.g. gcr.io/proj/img:tag)
 	MaxArchiveBytes      int64
 	MaxEntries           int
