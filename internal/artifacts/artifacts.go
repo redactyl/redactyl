@@ -277,7 +277,6 @@ func ScanContainersWithStats(root string, limits Limits, allow PathAllowFunc, em
 }
 
 // ScanIaC scans IaC hotspots like Terraform state files and kubeconfigs.
-// Minimal placeholder: handled in a subsequent step.
 func ScanIaC(root string, limits Limits, emit func(path string, data []byte)) error {
 	return ScanIaCWithFilter(root, limits, nil, emit)
 }
