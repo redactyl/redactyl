@@ -69,6 +69,7 @@ func init() {
 	cmd.Flags().BoolVar(&flagNoTUI, "no-tui", false, "disable interactive TUI mode (for CI/CD or piping output)")
 	cmd.Flags().BoolVar(&flagViewLast, "view-last", false, "view last scan results in TUI without rescanning")
 	cmd.Flags().BoolVar(&flagDemo, "demo", false, "launch TUI with sample data (for screenshots/demos)")
+	_ = cmd.Flags().MarkHidden("demo")
 
 	// Backward compatibility: -i now does nothing (TUI is default), but keep flag to avoid breaking existing scripts
 	var flagInteractiveDeprecated bool
