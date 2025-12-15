@@ -12,10 +12,10 @@ import (
 func ExampleScan() {
 	// 1. Configure the scan
 	cfg := core.Config{
-		Root:            ".",   // Scan the current directory
-		Threads:         4,     // Number of concurrent workers
-		IncludeGlobs:    "*.go", // Only scan Go files (optional)
-		MaxBytes:        1024 * 1024, // Skip files larger than 1MB
+		Root:         ".",         // Scan the current directory
+		Threads:      4,           // Number of concurrent workers
+		IncludeGlobs: "*.go",      // Only scan Go files (optional)
+		MaxBytes:     1024 * 1024, // Skip files larger than 1MB
 	}
 
 	// 2. Run the scan
@@ -39,7 +39,7 @@ func ExampleScan() {
 func ExampleScanWithStats() {
 	cfg := core.Config{
 		Root:           "test/integration/fixtures", // Point to a directory
-		ScanTimeBudget: 5 * time.Second,            // Set a time limit per artifact
+		ScanTimeBudget: 5 * time.Second,             // Set a time limit per artifact
 	}
 
 	// Run scan and get detailed result object
@@ -50,7 +50,7 @@ func ExampleScanWithStats() {
 
 	fmt.Printf("Scanned %d files in %s\n", result.FilesScanned, result.Duration)
 	fmt.Printf("Found %d secrets\n", len(result.Findings))
-	
+
 	// Check artifact scanning stats
 	if result.ArtifactStats.AbortedByTime > 0 {
 		fmt.Printf("Warning: %d artifacts timed out\n", result.ArtifactStats.AbortedByTime)
