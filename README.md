@@ -10,6 +10,8 @@
 
 Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) for detection, enhanced with intelligent artifact streaming and context-aware analysis.
 
+![Redactyl TUI](docs/images/tui-screenshot.png)
+
 ## Why Redactyl?
 
 Secrets don't just live in Git history - they hide in **container images, Helm charts, CI/CD artifacts, and nested archives** where traditional scanners can't reach them. Redactyl finds secrets in complex cloud-native artifacts without extracting them to disk.
@@ -362,8 +364,6 @@ redactyl detectors
 ## Interactive TUI
 
 Redactyl provides a rich terminal user interface (TUI) for interactive secret scanning and management.
-
-![Redactyl TUI](docs/images/tui-screenshot.png)
 
 ### Features
 
