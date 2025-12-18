@@ -36,7 +36,7 @@ __pycache__/
 *.7z
 
 # local config (if created)
-redactyl.baseline.json
+
 
 
 .redactylcache.json

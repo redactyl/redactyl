@@ -297,7 +297,7 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to write audit log: %v\n", err)
 	}
 
-	useTUI := !flagNoTUI && !flagJSON && !flagSARIF
+	useTUI := !flagNoTUI && !flagJSON && !flagSARIF && !flagText
 	if useTUI && !isTerminal(os.Stdout) {
 		useTUI = false
 	}
