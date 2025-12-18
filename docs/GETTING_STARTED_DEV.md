@@ -2,7 +2,7 @@
 
 **For developers working on Redactyl - the deep artifact scanner for cloud-native environments**
 
-**Last Updated:** 2025-12-15
+**Last Updated:** 2025-12-17
 
 ---
 
