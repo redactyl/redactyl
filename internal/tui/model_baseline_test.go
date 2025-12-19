@@ -32,7 +32,7 @@ func TestNewModelWithBaseline(t *testing.T) {
 	// Create baseline with one finding
 	baseline := report.Baseline{
 		Items: map[string]bool{
-			"file2.go|test-detector|baselined-secret": true,
+			report.FindingKey(findings[1]): true,
 		},
 	}
 
@@ -79,7 +79,7 @@ func TestNewModelWithBaseline_AllBaselined(t *testing.T) {
 
 	baseline := report.Baseline{
 		Items: map[string]bool{
-			"file.go|detector|secret": true,
+			report.FindingKey(findings[0]): true,
 		},
 	}
 
@@ -94,7 +94,11 @@ func TestNewModelWithBaseline_AllBaselined(t *testing.T) {
 
 func TestIsBaselined(t *testing.T) {
 	baselinedSet := map[string]bool{
-		"path/to/file.go|detector-name|secret-match": true,
+		report.FindingKey(types.Finding{
+			Path:     "path/to/file.go",
+			Detector: "detector-name",
+			Match:    "secret-match",
+		}): true,
 	}
 
 	tests := []struct {

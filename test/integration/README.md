@@ -2,7 +2,7 @@
 
 **Purpose:** Real-world validation tests using actual artifacts to verify end-to-end functionality.
 
-## Quick Demo 🎬
+## Quick Demo
 
 Want to see Redactyl in action? Run the demo:
 

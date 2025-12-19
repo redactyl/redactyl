@@ -1,6 +1,8 @@
 package report
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 
@@ -10,6 +12,8 @@ import (
 type Baseline struct {
 	Items map[string]bool `json:"items"`
 }
+
+const FingerprintMetadataKey = "redactyl_fingerprint"
 
 func LoadBaseline(path string) (Baseline, error) {
 	b := Baseline{Items: map[string]bool{}}
@@ -26,7 +30,7 @@ func LoadBaseline(path string) (Baseline, error) {
 func SaveBaseline(path string, findings []types.Finding) error {
 	b := Baseline{Items: map[string]bool{}}
 	for _, f := range findings {
-		b.Items[key(f)] = true
+		b.Items[FindingKey(f)] = true
 	}
 	buf, err := json.MarshalIndent(b, "", "  ")
 	if err != nil {
@@ -38,15 +42,46 @@ func SaveBaseline(path string, findings []types.Finding) error {
 func FilterNewFindings(findings []types.Finding, base Baseline) []types.Finding {
 	var out []types.Finding
 	for _, f := range findings {
-		if !base.Items[key(f)] {
+		if !IsBaselined(f, base.Items) {
 			out = append(out, f)
 		}
 	}
 	return out
 }
 
-func key(f types.Finding) string {
+// FindingKey returns a stable fingerprint for a finding without storing raw match text.
+// It prefers a precomputed fingerprint in metadata when present.
+func FindingKey(f types.Finding) string {
+	if f.Metadata != nil {
+		if fp := f.Metadata[FingerprintMetadataKey]; fp != "" {
+			return fp
+		}
+	}
+	return fingerprintValue(f.Path, f.Detector, f.Match)
+}
+
+// LegacyFindingKey returns the pre-1.0.1 baseline key format.
+func LegacyFindingKey(f types.Finding) string {
 	return f.Path + "|" + f.Detector + "|" + f.Match
+}
+
+// IsBaselined checks both current and legacy baseline key formats.
+func IsBaselined(f types.Finding, items map[string]bool) bool {
+	if items == nil {
+		return false
+	}
+	if items[FindingKey(f)] {
+		return true
+	}
+	if items[LegacyFindingKey(f)] {
+		return true
+	}
+	return false
+}
+
+func fingerprintValue(path, detector, match string) string {
+	sum := sha256.Sum256([]byte(path + "|" + detector + "|" + match))
+	return hex.EncodeToString(sum[:])
 }
 
 func ShouldFail(findings []types.Finding, failOn string) bool {

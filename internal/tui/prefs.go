@@ -11,12 +11,16 @@ type Prefs struct {
 	// HideSecrets controls whether secret values are redacted in the display.
 	// Defaults to true for security (prevents shoulder surfing).
 	HideSecrets bool `json:"hide_secrets"`
+	// StoreRawAudit controls whether audit logs store raw match/secret values.
+	// Defaults to false for security.
+	StoreRawAudit bool `json:"store_raw_audit"`
 }
 
 // DefaultPrefs returns the default preferences.
 func DefaultPrefs() Prefs {
 	return Prefs{
-		HideSecrets: true, // Default to hidden for security
+		HideSecrets:   true,  // Default to hidden for security
+		StoreRawAudit: false, // Default to redacted audit logs
 	}
 }
 

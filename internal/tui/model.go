@@ -82,11 +82,7 @@ func severityText(s types.Severity) string {
 }
 
 func isBaselined(f types.Finding, baselinedSet map[string]bool) bool {
-	if baselinedSet == nil {
-		return false
-	}
-	key := f.Path + "|" + f.Detector + "|" + f.Match
-	return baselinedSet[key]
+	return report.IsBaselined(f, baselinedSet)
 }
 
 func formatDuration(d time.Duration) string {
@@ -157,7 +153,8 @@ type Model struct {
 	contextLines int // Number of lines to show around finding (default 3)
 
 	// Secret visibility state
-	hideSecrets bool // When true, redact secret values in display (default true)
+	hideSecrets   bool // When true, redact secret values in display (default true)
+	storeRawAudit bool // When true, audit logs store raw match/secret values
 
 	// Grouping state
 	groupMode       string          // "none", "file", "detector"
@@ -271,7 +268,8 @@ func NewModel(findings []types.Finding, rescanFunc func() ([]types.Finding, erro
 		selectedFindings: make(map[int]bool),
 		contextLines:     3,                 // Default context lines around finding
 		hideSecrets:      prefs.HideSecrets, // Load from preferences (default: true)
-		groupMode:        GroupNone,         // No grouping by default
+		storeRawAudit:    prefs.StoreRawAudit,
+		groupMode:        GroupNone, // No grouping by default
 		expandedGroups:   make(map[string]bool),
 	}
 
@@ -591,19 +589,17 @@ func (m *Model) computeDiff() bool {
 
 	prevKeys := make(map[string]bool)
 	for _, f := range prevScan.AllFindings {
-		key := f.Path + "|" + f.Detector + "|" + f.Match
-		prevKeys[key] = true
+		prevKeys[report.FindingKey(f)] = true
 	}
 
 	currKeys := make(map[string]bool)
 	for _, f := range m.findings {
-		key := f.Path + "|" + f.Detector + "|" + f.Match
-		currKeys[key] = true
+		currKeys[report.FindingKey(f)] = true
 	}
 
 	m.diffNewFindings = nil
 	for _, f := range m.findings {
-		key := f.Path + "|" + f.Detector + "|" + f.Match
+		key := report.FindingKey(f)
 		if !prevKeys[key] {
 			m.diffNewFindings = append(m.diffNewFindings, f)
 		}
@@ -611,7 +607,7 @@ func (m *Model) computeDiff() bool {
 
 	m.diffFixedFindings = nil
 	for _, f := range prevScan.AllFindings {
-		key := f.Path + "|" + f.Detector + "|" + f.Match
+		key := report.FindingKey(f)
 		if !currKeys[key] {
 			m.diffFixedFindings = append(m.diffFixedFindings, f)
 		}
@@ -1536,7 +1532,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "*": // toggle hide secrets
 			m.hideSecrets = !m.hideSecrets
 			// Persist preference
-			prefs := Prefs{HideSecrets: m.hideSecrets}
+			prefs := LoadPrefs()
+			prefs.HideSecrets = m.hideSecrets
 			_ = SavePrefs(prefs) //nolint:errcheck // Best effort save, don't fail TUI
 			m.rebuildTableRows()
 			timeout := time.Now().Add(3 * time.Second)
@@ -1545,6 +1542,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.statusMessage = "Secrets hidden (*: show)"
 			} else {
 				m.statusMessage = "Secrets visible (*: hide)"
+			}
+			return m, nil
+		case "R": // toggle raw audit logging
+			m.storeRawAudit = !m.storeRawAudit
+			prefs := LoadPrefs()
+			prefs.StoreRawAudit = m.storeRawAudit
+			_ = SavePrefs(prefs) //nolint:errcheck // Best effort save, don't fail TUI
+			timeout := time.Now().Add(4 * time.Second)
+			m.statusTimeout = &timeout
+			if m.storeRawAudit {
+				m.statusMessage = "Audit logs will store raw matches (R: redact)"
+			} else {
+				m.statusMessage = "Audit logs redacted by default (R: store raw)"
 			}
 			return m, nil
 		case "y": // copy path
@@ -2011,9 +2021,10 @@ func (m Model) View() string {
 		lines = append(lines, sepStyle.Render(strings.Repeat("─", 42)))
 		lines = append(lines, row("e", "Export", "y/Y", "Copy path"))
 		lines = append(lines, row("+/-", "Expand context", "gf", "Group by file"))
-		lines = append(lines, row("D", "Diff view", "a", "Audit log"))
+		lines = append(lines, row("gd", "Group by detector", "D", "Diff view"))
+		lines = append(lines, row("a", "Audit log", "X", "Clear history"))
 		lines = append(lines, sepStyle.Render(strings.Repeat("─", 42)))
-		lines = append(lines, row("*", "Hide secrets", "X", "Clear history"))
+		lines = append(lines, row("*", "Hide secrets", "R", "Raw audit"))
 		lines = append(lines, row("?", "This help", "q", "Quit"))
 		lines = append(lines, "")
 		lines = append(lines, sepStyle.Italic(true).Render("Press any key to close"))

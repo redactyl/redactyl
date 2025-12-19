@@ -285,6 +285,7 @@ func runScan(cmd *cobra.Command, _ []string) error {
 	}
 
 	auditLog := audit.NewAuditLog(abs)
+	prefs := tui.LoadPrefs()
 	auditRecord := audit.CreateScanRecord(
 		abs,
 		auditFindings,
@@ -292,6 +293,7 @@ func runScan(cmd *cobra.Command, _ []string) error {
 		res.FilesScanned,
 		res.Duration,
 		"redactyl.baseline.json",
+		audit.Options{StoreRaw: prefs.StoreRawAudit},
 	)
 	if err := auditLog.LogScan(auditRecord); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to write audit log: %v\n", err)

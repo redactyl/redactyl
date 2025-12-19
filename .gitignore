@@ -14,6 +14,7 @@ out/
 .redactylcache.json
 coverage/
 *.coverprofile
+cover.out
 
 # dependency/vendor
 vendor/
@@ -46,6 +47,9 @@ redactyl-findings.json
 *.sarif.json
 remediation.json
 purge.json
+redactyl.baseline.json
+.redactyl_audit.jsonl
+.redactyl_last_scan.json
 
 # AI assistant context files (contributors may generate their own)
 CLAUDE.md

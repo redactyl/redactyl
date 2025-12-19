@@ -87,7 +87,7 @@ func TestAddToBaseline(t *testing.T) {
 			t.Fatalf("Failed to load baseline: %v", err)
 		}
 
-		key := "file.go|det|match"
+		key := report.FindingKey(findings[0])
 		if !base.Items[key] {
 			t.Error("Finding not found in baseline")
 		}

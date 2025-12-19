@@ -1,12 +1,14 @@
 package audit
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/redactyl/redactyl/internal/report"
 	"github.com/redactyl/redactyl/internal/types"
 )
 
@@ -36,6 +38,12 @@ type AuditLog struct {
 	logPath string
 }
 
+// Options controls how audit records are written.
+type Options struct {
+	// StoreRaw preserves raw match/secret data in the audit log (opt-in).
+	StoreRaw bool
+}
+
 func NewAuditLog(root string) *AuditLog {
 	gitDir := filepath.Join(root, ".git")
 	logPath := filepath.Join(root, ".redactyl_audit.jsonl")
@@ -53,13 +61,21 @@ func (a *AuditLog) LoadHistory() ([]ScanRecord, error) {
 	defer f.Close()
 
 	var records []ScanRecord
-	decoder := json.NewDecoder(f)
-	for decoder.More() {
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
 		var record ScanRecord
-		if err := decoder.Decode(&record); err != nil {
+		if err := json.Unmarshal(line, &record); err != nil {
 			continue
 		}
 		records = append(records, record)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read audit log: %w", err)
 	}
 
 	for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
@@ -125,6 +141,7 @@ func CreateScanRecord(
 	filesScanned int,
 	duration time.Duration,
 	baselineFile string,
+	opts Options,
 ) ScanRecord {
 	severityCounts := make(map[string]int)
 	for _, f := range allFindings {
@@ -144,8 +161,8 @@ func CreateScanRecord(
 		})
 	}
 
-	// Redact secrets from findings before storing in audit log
-	redactedFindings := redactSecrets(allFindings)
+	// Redact sensitive fields from findings before storing in audit log
+	redactedFindings := redactFindings(allFindings, opts)
 
 	return ScanRecord{
 		Timestamp:      time.Now(),
@@ -162,15 +179,33 @@ func CreateScanRecord(
 	}
 }
 
-// redactSecrets returns a copy of findings with the Secret field redacted.
+// redactFindings returns a copy of findings with sensitive fields redacted.
 // This prevents actual secret values from being written to the audit log.
-func redactSecrets(findings []types.Finding) []types.Finding {
+func redactFindings(findings []types.Finding, opts Options) []types.Finding {
 	redacted := make([]types.Finding, len(findings))
 	for i, f := range findings {
 		redacted[i] = f
-		if f.Secret != "" {
-			redacted[i].Secret = "[REDACTED]"
+		redacted[i].Metadata = cloneMetadata(f.Metadata)
+		redacted[i].Metadata[report.FingerprintMetadataKey] = report.FindingKey(f)
+		if !opts.StoreRaw {
+			if f.Secret != "" {
+				redacted[i].Secret = "[REDACTED]"
+			}
+			if f.Match != "" {
+				redacted[i].Match = "[REDACTED]"
+			}
 		}
 	}
 	return redacted
+}
+
+func cloneMetadata(meta map[string]string) map[string]string {
+	if meta == nil {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(meta))
+	for k, v := range meta {
+		out[k] = v
+	}
+	return out
 }

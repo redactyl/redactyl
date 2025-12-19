@@ -36,7 +36,8 @@ var defaultExcludeFileNames = map[string]bool{
 	".DS_Store":                true,
 	".redactyl_audit.jsonl":    true, // Redactyl's own audit log (contains previous findings)
 	".redactyl_last_scan.json": true, // Redactyl's scan cache (contains previous findings)
-	".redactyl_baseline.json":  true, // Redactyl's baseline file
+	".redactyl_baseline.json":  true, // Legacy baseline filename
+	"redactyl.baseline.json":   true, // Redactyl's baseline file
 }
 
 func isDefaultDirExcluded(name string) bool {

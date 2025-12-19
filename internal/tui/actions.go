@@ -483,7 +483,7 @@ func (m Model) addToBaseline() tea.Cmd {
 		base = report.Baseline{Items: map[string]bool{}}
 	}
 
-	key := f.Path + "|" + f.Detector + "|" + f.Match
+	key := report.FindingKey(*f)
 	base.Items[key] = true
 
 	// Serialize manually since report.SaveBaseline regenerates from []Finding
@@ -505,8 +505,8 @@ func (m *Model) removeFromBaseline() tea.Cmd {
 		return nil
 	}
 
-	key := f.Path + "|" + f.Detector + "|" + f.Match
-	if !m.baselinedSet[key] {
+	key := report.FindingKey(*f)
+	if !report.IsBaselined(*f, m.baselinedSet) {
 		return func() tea.Msg { return statusMsg("Finding is not baselined") }
 	}
 
@@ -516,6 +516,7 @@ func (m *Model) removeFromBaseline() tea.Cmd {
 	}
 
 	delete(base.Items, key)
+	delete(base.Items, report.LegacyFindingKey(*f))
 
 	buf, err := json.MarshalIndent(base, "", "  ")
 	if err != nil {
@@ -527,6 +528,7 @@ func (m *Model) removeFromBaseline() tea.Cmd {
 	}
 
 	delete(m.baselinedSet, key)
+	delete(m.baselinedSet, report.LegacyFindingKey(*f))
 
 	// Update table row to remove baseline marker
 	idx := m.table.Cursor()
@@ -575,7 +577,7 @@ func (m *Model) bulkBaseline() tea.Cmd {
 	for origIdx := range m.selectedFindings {
 		if origIdx >= 0 && origIdx < len(m.findings) {
 			f := m.findings[origIdx]
-			key := f.Path + "|" + f.Detector + "|" + f.Match
+			key := report.FindingKey(f)
 			if !base.Items[key] {
 				base.Items[key] = true
 				count++
