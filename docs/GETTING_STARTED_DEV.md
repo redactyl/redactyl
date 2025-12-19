@@ -14,19 +14,19 @@
 
 ---
 
-## Current State (v1.0.1 Production Ready ✅)
+## Current State (v1.0.1 Production Ready)
 
 ### What Works Today
-- ✅ Gitleaks-powered secret detection (via scanner interface)
-- ✅ Archive streaming (zip, tar, tgz) without disk extraction
-- ✅ Container image scanning (Docker save format + OCI)
-- ✅ Helm chart scanning (.tgz and directories)
-- ✅ Kubernetes manifest scanning (auto-detection)
-- ✅ Virtual paths for nested artifacts (`archive::layer::file`)
-- ✅ SARIF output, JSON output, remediation commands
-- ✅ Rich layer context (OCI support, BuildLayerContext)
-- ✅ Config precedence: CLI > local .redactyl.yaml > global config
-- ✅ Comprehensive integration tests (E2E with real Gitleaks)
+- Gitleaks-powered secret detection (via scanner interface)
+- Archive streaming (zip, tar, tgz) without disk extraction
+- Container image scanning (Docker save format + OCI)
+- Helm chart scanning (.tgz and directories)
+- Kubernetes manifest scanning (auto-detection)
+- Virtual paths for nested artifacts (`archive::layer::file`)
+- SARIF output, JSON output, remediation commands
+- Rich layer context (OCI support, BuildLayerContext)
+- Config precedence: CLI > local .redactyl.yaml > global config
+- Comprehensive integration tests (E2E with real Gitleaks)
 
 ### Current Focus (Q2 2025)
 - Registry integration (Docker Hub, GCR, ECR, ACR)
