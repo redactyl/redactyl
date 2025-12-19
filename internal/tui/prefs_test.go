@@ -59,6 +59,9 @@ func TestDefaultPrefs(t *testing.T) {
 	if !prefs.HideSecrets {
 		t.Error("DefaultPrefs().HideSecrets should be true")
 	}
+	if prefs.StoreRawAudit {
+		t.Error("DefaultPrefs().StoreRawAudit should be false")
+	}
 }
 
 func TestLoadPrefs_NoFile(t *testing.T) {
@@ -66,6 +69,9 @@ func TestLoadPrefs_NoFile(t *testing.T) {
 	prefs := LoadPrefs()
 	if !prefs.HideSecrets {
 		t.Error("LoadPrefs() with no file should return defaults (HideSecrets=true)")
+	}
+	if prefs.StoreRawAudit {
+		t.Error("LoadPrefs() with no file should return defaults (StoreRawAudit=false)")
 	}
 }
 
@@ -77,7 +83,7 @@ func TestSaveAndLoadPrefs(t *testing.T) {
 	os.Setenv("HOME", tmpDir)
 
 	// Test saving with HideSecrets = false
-	prefs := Prefs{HideSecrets: false}
+	prefs := Prefs{HideSecrets: false, StoreRawAudit: true}
 	err := SavePrefs(prefs)
 	if err != nil {
 		t.Fatalf("SavePrefs failed: %v", err)
@@ -94,6 +100,9 @@ func TestSaveAndLoadPrefs(t *testing.T) {
 	if loaded.HideSecrets != false {
 		t.Error("Loaded prefs should have HideSecrets=false")
 	}
+	if loaded.StoreRawAudit != true {
+		t.Error("Loaded prefs should have StoreRawAudit=true")
+	}
 
 	// Test saving with HideSecrets = true
 	prefs.HideSecrets = true
@@ -105,5 +114,8 @@ func TestSaveAndLoadPrefs(t *testing.T) {
 	loaded = LoadPrefs()
 	if loaded.HideSecrets != true {
 		t.Error("Loaded prefs should have HideSecrets=true")
+	}
+	if loaded.StoreRawAudit != true {
+		t.Error("Loaded prefs should retain StoreRawAudit=true")
 	}
 }

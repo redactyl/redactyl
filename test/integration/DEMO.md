@@ -244,7 +244,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run Redactyl
         run: |
-          wget https://github.com/redactyl/redactyl/releases/download/v1.0.0/redactyl-linux-amd64
+          wget https://github.com/redactyl/redactyl/releases/download/v1.0.1/redactyl-linux-amd64
           chmod +x redactyl-linux-amd64
           ./redactyl-linux-amd64 scan --helm --k8s --fail-on high
 EOF
@@ -278,4 +278,4 @@ A: Absolutely! These demos use the same code that runs in production. Just point
 
 **Demo Duration:** ~2 minutes
 **Preparation Time:** 30 seconds (first run)
-**Wow Factor:** High 🚀
+**Wow Factor:** High

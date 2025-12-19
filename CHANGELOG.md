@@ -4,6 +4,22 @@
 
   The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+  ## v1.0.1 - 2025-12-17
+
+  ### Security
+  - Redact audit logs by default (raw matches and secrets no longer persisted).
+  - Add opt-in raw audit logging toggle in the TUI (`R`), persisted in user prefs.
+  - Baseline keys now use a stable fingerprint instead of raw match text.
+
+  ### Fixed
+  - Audit log history now loads JSONL correctly (scan history and delete work reliably).
+  - Default excludes now cover `redactyl.baseline.json`.
+
+  ### Changed
+  - TUI diff and baseline matching use the new fingerprinted keys, while honoring legacy baselines.
+  - README updated to document audit log redaction and the `R` toggle.
+  - `.gitignore` now includes baseline, audit log, last scan cache, and `cover.out`.
+
   ## v1.0.0 - 2025-12-16
 
   ### Added

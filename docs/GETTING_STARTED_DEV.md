@@ -14,7 +14,7 @@
 
 ---
 
-## Current State (v1.0.0 Production Ready ✅)
+## Current State (v1.0.1 Production Ready ✅)
 
 ### What Works Today
 - ✅ Gitleaks-powered secret detection (via scanner interface)
@@ -29,10 +29,10 @@
 - ✅ Comprehensive integration tests (E2E with real Gitleaks)
 
 ### Current Focus (Q2 2025)
-- 🎯 Registry integration (Docker Hub, GCR, ECR, ACR)
-- 🎯 CI/CD platform integrations
-- 🎯 Webhook automation
-- 🎯 Performance optimization (caching, parallel scanning)
+- Registry integration (Docker Hub, GCR, ECR, ACR)
+- CI/CD platform integrations
+- Webhook automation
+- Performance optimization (caching, parallel scanning)
 
 ### Technology Stack
 - Go 1.25+ (required)
@@ -84,7 +84,7 @@ redactyl/
 │   ├── fix.go            # Remediation commands
 │   └── purge.go          # History rewriting
 ├── internal/
-│   ├── artifacts/        # 🌟 Core artifact streaming (keep & enhance)
+│   ├── artifacts/        # Core artifact streaming (keep & enhance)
 │   │   ├── artifacts.go  # Archive/container scanning
 │   │   └── ...
 │   ├── audit/            # Audit logging

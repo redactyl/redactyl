@@ -261,7 +261,7 @@ Redactyl can scan remote container images directly from OCI-compliant registries
 redactyl scan --registry alpine:latest
 
 # Scan private image (Google Container Registry)
-redactyl scan --registry gcr.io/my-project/my-app:v1.0.0
+redactyl scan --registry gcr.io/my-project/my-app:v1.0.1
 
 # Scan multiple images
 redactyl scan --registry image1:tag --registry image2:tag
@@ -377,6 +377,7 @@ Redactyl provides a rich terminal user interface (TUI) for interactive secret sc
   - `r` - Rescan (fresh scan without cache)
   - `e` - Export current view (JSON/CSV/SARIF)
   - `y` / `Y` - Copy path / full details to clipboard
+  - `R` - Toggle raw audit logging (opt-in; default is redacted)
 - **Navigation:**
   - `j` / `k` - Move through findings
   - `Ctrl+d` / `Ctrl+u` - Half-page down/up
@@ -441,6 +442,8 @@ Press `?` or `h` in the TUI to see all keyboard shortcuts.
 ## Audit logging
 
 Redactyl automatically maintains an audit log of all scans for compliance and reporting purposes.
+
+Audit logs are **redacted by default** (no raw match/secret values). To opt in to storing raw values, toggle `R` in the TUI and re-run scans.
 
 ### Log location
 
@@ -626,7 +629,7 @@ Or use the [pre-commit framework](https://pre-commit.com):
 
 ```yaml
 - repo: https://github.com/redactyl/redactyl
-  rev: v1.0.0
+  rev: v1.0.1
   hooks:
     - id: redactyl-scan
 ```
@@ -697,4 +700,3 @@ Options:
 - Or run scans in Enterprise workers via `github.com/redactyl/redactyl/pkg/core`.
 
 Inquiries: open a GitHub Discussion (Q&A) titled **"Enterprise inquiry"**.
-

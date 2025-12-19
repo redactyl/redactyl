@@ -57,6 +57,7 @@ func TestIsDefaultFileExcluded_RedactylFiles(t *testing.T) {
 		{".redactyl_audit.jsonl", true},
 		{".redactyl_last_scan.json", true},
 		{".redactyl_baseline.json", true},
+		{"redactyl.baseline.json", true},
 		{"src/.redactyl_audit.jsonl", true},
 		{"deep/nested/.redactyl_last_scan.json", true},
 		{"normal_file.go", false},
