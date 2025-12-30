@@ -21,7 +21,7 @@ func selfUpdate() error {
 	if err != nil {
 		ver = semver.MustParse("0.0.0")
 	}
-	latest, err := selfupdate.UpdateSelf(semver3.MustParse(ver.String()), "redactyl/redactyl")
+	latest, err := selfupdate.UpdateSelf(semver3.MustParse(ver.String()), "varalys/redactyl")
 	if err != nil {
 		return err
 	}

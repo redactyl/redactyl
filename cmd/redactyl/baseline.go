@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/redactyl/redactyl/internal/config"
-	"github.com/redactyl/redactyl/internal/engine"
-	"github.com/redactyl/redactyl/internal/report"
 	"github.com/spf13/cobra"
+	"github.com/varalys/redactyl/internal/config"
+	"github.com/varalys/redactyl/internal/engine"
+	"github.com/varalys/redactyl/internal/report"
 )
 
 func init() {

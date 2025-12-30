@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 func TestView_Rendering(t *testing.T) {

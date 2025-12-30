@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/redactyl/redactyl/internal/gitexec"
 	"github.com/spf13/cobra"
+	"github.com/varalys/redactyl/internal/gitexec"
 )
 
 func init() {

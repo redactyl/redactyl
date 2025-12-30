@@ -11,7 +11,7 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X github.com/redactyl/redactyl/cmd/redactyl.version={{.Version}}
+      - -X github.com/varalys/redactyl/cmd/redactyl.version={{.Version}}
     goos:
       - linux
       - darwin
@@ -40,7 +40,7 @@ changelog:
 
 release:
   github:
-    owner: redactyl
+    owner: varalys
     name: redactyl
   draft: false
   prerelease: auto
@@ -52,7 +52,7 @@ nfpms:
     maintainer: Franz <maintainer@redactyl.io>
     description: Find secrets in your repo with low noise.
     license: Apache-2.0
-    homepage: https://github.com/redactyl/redactyl
+    homepage: https://github.com/varalys/redactyl
     section: utils
     priority: optional
     contents: []

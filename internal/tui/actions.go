@@ -18,8 +18,8 @@ import (
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/redactyl/redactyl/internal/report"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/report"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 // isVirtualPath checks if a path is a virtual path (inside an archive/container)

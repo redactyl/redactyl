@@ -3,8 +3,8 @@ package redactyl
 import (
 	"fmt"
 
-	"github.com/redactyl/redactyl/internal/engine"
 	"github.com/spf13/cobra"
+	"github.com/varalys/redactyl/internal/engine"
 )
 
 func init() {

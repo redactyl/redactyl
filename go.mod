@@ -1,4 +1,4 @@
-module github.com/redactyl/redactyl
+module github.com/varalys/redactyl
 
 go 1.25.0
 

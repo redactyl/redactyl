@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 func TestWriteSARIFWithStats_IncludesProperties(t *testing.T) {

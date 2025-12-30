@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/redactyl/redactyl/internal/config"
-	"github.com/redactyl/redactyl/internal/engine"
 	"github.com/spf13/cobra"
+	"github.com/varalys/redactyl/internal/config"
+	"github.com/varalys/redactyl/internal/engine"
 	"gopkg.in/yaml.v3"
 )
 

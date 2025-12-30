@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/redactyl/redactyl/docs/schemas/findings.schema.json",
+  "$id": "https://github.com/varalys/redactyl/docs/schemas/findings.schema.json",
   "title": "Redactyl Findings",
   "type": "array",
   "items": {

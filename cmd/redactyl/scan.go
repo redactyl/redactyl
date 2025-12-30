@@ -10,15 +10,15 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/redactyl/redactyl/internal/audit"
-	"github.com/redactyl/redactyl/internal/cache"
-	"github.com/redactyl/redactyl/internal/config"
-	"github.com/redactyl/redactyl/internal/engine"
-	"github.com/redactyl/redactyl/internal/report"
-	"github.com/redactyl/redactyl/internal/tui"
-	"github.com/redactyl/redactyl/internal/types"
-	"github.com/redactyl/redactyl/internal/update"
 	"github.com/spf13/cobra"
+	"github.com/varalys/redactyl/internal/audit"
+	"github.com/varalys/redactyl/internal/cache"
+	"github.com/varalys/redactyl/internal/config"
+	"github.com/varalys/redactyl/internal/engine"
+	"github.com/varalys/redactyl/internal/report"
+	"github.com/varalys/redactyl/internal/tui"
+	"github.com/varalys/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/update"
 )
 
 var (

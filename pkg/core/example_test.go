@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/redactyl/redactyl/pkg/core"
+	"github.com/varalys/redactyl/pkg/core"
 )
 
 // ExampleScan demonstrates how to perform a simple scan of a directory.

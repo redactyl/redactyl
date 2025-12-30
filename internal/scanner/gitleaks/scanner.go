@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/redactyl/redactyl/internal/config"
-	"github.com/redactyl/redactyl/internal/scanner"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/config"
+	"github.com/varalys/redactyl/internal/scanner"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 // Scanner implements the scanner.Scanner interface using Gitleaks.

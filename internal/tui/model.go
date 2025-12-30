@@ -21,9 +21,9 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/redactyl/redactyl/internal/audit"
-	"github.com/redactyl/redactyl/internal/report"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/audit"
+	"github.com/varalys/redactyl/internal/report"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 var (

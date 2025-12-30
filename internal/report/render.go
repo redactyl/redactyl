@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 // PrintOptions controls table rendering and summary stats for PrintTable.

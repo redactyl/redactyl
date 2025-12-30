@@ -3,9 +3,9 @@ package factory
 import (
 	"fmt"
 
-	"github.com/redactyl/redactyl/internal/config"
-	"github.com/redactyl/redactyl/internal/scanner"
-	"github.com/redactyl/redactyl/internal/scanner/gitleaks"
+	"github.com/varalys/redactyl/internal/config"
+	"github.com/varalys/redactyl/internal/scanner"
+	"github.com/varalys/redactyl/internal/scanner/gitleaks"
 )
 
 // Config is the subset of configuration needed to create a scanner.

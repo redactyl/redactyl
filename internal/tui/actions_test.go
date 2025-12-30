@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/redactyl/redactyl/internal/report"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/report"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 func withTempDir(t *testing.T, fn func(dir string)) {

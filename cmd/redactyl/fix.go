@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/redactyl/redactyl/internal/files"
-	"github.com/redactyl/redactyl/internal/gitexec"
-	"github.com/redactyl/redactyl/internal/redact"
 	"github.com/spf13/cobra"
+	"github.com/varalys/redactyl/internal/files"
+	"github.com/varalys/redactyl/internal/gitexec"
+	"github.com/varalys/redactyl/internal/redact"
 )
 
 func init() {

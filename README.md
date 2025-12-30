@@ -1,10 +1,10 @@
 # Redactyl
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Tests](https://github.com/redactyl/redactyl/actions/workflows/test.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/test.yml)
-[![Lint](https://github.com/redactyl/redactyl/actions/workflows/lint.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/lint.yml)
-[![Vuln](https://github.com/redactyl/redactyl/actions/workflows/vuln.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/vuln.yml)
-[![Release](https://github.com/redactyl/redactyl/actions/workflows/release.yml/badge.svg)](https://github.com/redactyl/redactyl/actions/workflows/release.yml)
+[![Tests](https://github.com/varalys/redactyl/actions/workflows/test.yml/badge.svg)](https://github.com/varalys/redactyl/actions/workflows/test.yml)
+[![Lint](https://github.com/varalys/redactyl/actions/workflows/lint.yml/badge.svg)](https://github.com/varalys/redactyl/actions/workflows/lint.yml)
+[![Vuln](https://github.com/varalys/redactyl/actions/workflows/vuln.yml/badge.svg)](https://github.com/varalys/redactyl/actions/workflows/vuln.yml)
+[![Release](https://github.com/varalys/redactyl/actions/workflows/release.yml/badge.svg)](https://github.com/varalys/redactyl/actions/workflows/release.yml)
 
 **Deep artifact scanner for cloud-native environments** - Find secrets hiding in container images, Helm charts, Kubernetes manifests, and nested archives without extracting to disk.
 
@@ -71,7 +71,7 @@ go install .  # installs to $(go env GOBIN) or $(go env GOPATH)/bin
 Install globally (recommended):
 
 ```sh
-go install github.com/redactyl/redactyl@latest
+go install github.com/varalys/redactyl@latest
 redactyl --help
 ```
 
@@ -628,7 +628,7 @@ redactyl hook install --pre-commit
 Or use the [pre-commit framework](https://pre-commit.com):
 
 ```yaml
-- repo: https://github.com/redactyl/redactyl
+- repo: https://github.com/varalys/redactyl
   rev: v1.0.1
   hooks:
     - id: redactyl-scan
@@ -651,7 +651,7 @@ No telemetry by default. Optional upload via `--upload` can omit repo metadata w
 
 Stable API surface for external consumers:
 
-- Import `github.com/redactyl/redactyl/pkg/core`
+- Import `github.com/varalys/redactyl/pkg/core`
 - Types: `core.Config`, `core.Finding`
 - Entry point: `core.Scan(cfg)`
 
@@ -697,6 +697,6 @@ Commercial offerings (dashboard, org policies, PR gating, SSO, hosted option) ar
 Options:
 
 - Upload from OSS CLI to your server: `--json --upload` (see schemas in `docs/schemas/`).
-- Or run scans in Enterprise workers via `github.com/redactyl/redactyl/pkg/core`.
+- Or run scans in Enterprise workers via `github.com/varalys/redactyl/pkg/core`.
 
 Inquiries: open a GitHub Discussion (Q&A) titled **"Enterprise inquiry"**.

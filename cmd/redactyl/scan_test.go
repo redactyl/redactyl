@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/redactyl/redactyl/internal/config"
+	"github.com/varalys/redactyl/internal/config"
 )
 
 func strptr(s string) *string { return &s }

@@ -11,14 +11,14 @@ import (
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
 	xxhash "github.com/cespare/xxhash/v2"
-	"github.com/redactyl/redactyl/internal/artifacts"
-	"github.com/redactyl/redactyl/internal/cache"
-	"github.com/redactyl/redactyl/internal/config"
-	"github.com/redactyl/redactyl/internal/git"
-	"github.com/redactyl/redactyl/internal/ignore"
-	"github.com/redactyl/redactyl/internal/scanner"
-	"github.com/redactyl/redactyl/internal/scanner/factory"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/artifacts"
+	"github.com/varalys/redactyl/internal/cache"
+	"github.com/varalys/redactyl/internal/config"
+	"github.com/varalys/redactyl/internal/git"
+	"github.com/varalys/redactyl/internal/ignore"
+	"github.com/varalys/redactyl/internal/scanner"
+	"github.com/varalys/redactyl/internal/scanner/factory"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 // Config controls scanning behavior including scope, performance, and filters.

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/redactyl/redactyl/internal/ignore"
+	"github.com/varalys/redactyl/internal/ignore"
 	yaml "gopkg.in/yaml.v3"
 )
 

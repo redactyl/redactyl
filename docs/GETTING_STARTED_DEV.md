@@ -60,7 +60,7 @@ make --version
 
 ### Clone and Build
 ```bash
-git clone https://github.com/redactyl/redactyl.git
+git clone https://github.com/varalys/redactyl.git
 cd redactyl
 
 # Build binary
