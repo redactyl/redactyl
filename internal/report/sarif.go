@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 type sarif struct {
@@ -95,7 +95,7 @@ func WriteSARIF(w io.Writer, findings []types.Finding) error {
 				ID:        f.Detector,
 				ShortDesc: &sarifMessage{Text: f.Detector + " detection"},
 				Help:      &sarifMessage{Text: "Secret-like token detected. Review and rotate if valid."},
-				HelpURI:   "https://github.com/redactyl/redactyl/blob/main/docs/rules/README.md#" + f.Detector,
+				HelpURI:   "https://github.com/varalys/redactyl/blob/main/docs/rules/README.md#" + f.Detector,
 			})
 		}
 	}

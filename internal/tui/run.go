@@ -5,8 +5,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/redactyl/redactyl/internal/report"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/report"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 func Run(findings []types.Finding, rescanFunc func() ([]types.Finding, error)) error {

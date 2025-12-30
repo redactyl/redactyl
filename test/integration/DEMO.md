@@ -244,7 +244,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run Redactyl
         run: |
-          wget https://github.com/redactyl/redactyl/releases/download/v1.0.1/redactyl-linux-amd64
+          wget https://github.com/varalys/redactyl/releases/download/v1.0.1/redactyl-linux-amd64
           chmod +x redactyl-linux-amd64
           ./redactyl-linux-amd64 scan --helm --k8s --fail-on high
 EOF

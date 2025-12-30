@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/redactyl/redactyl/internal/config"
-	"github.com/redactyl/redactyl/internal/scanner"
+	"github.com/varalys/redactyl/internal/config"
+	"github.com/varalys/redactyl/internal/scanner"
 )
 
 func TestNewScanner(t *testing.T) {

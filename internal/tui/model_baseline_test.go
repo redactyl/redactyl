@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/redactyl/redactyl/internal/report"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/report"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 func TestNewModelWithBaseline(t *testing.T) {

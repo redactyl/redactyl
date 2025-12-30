@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/redactyl/redactyl/internal/scanner"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/scanner"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 type noopScanner struct{}

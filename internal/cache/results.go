@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 type ScanResults struct {

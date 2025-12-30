@@ -1,6 +1,6 @@
 package scanner
 
-import "github.com/redactyl/redactyl/internal/types"
+import "github.com/varalys/redactyl/internal/types"
 
 // Scanner defines the interface for secret detection engines.
 // Implementations include Gitleaks integration and potential future scanners.

@@ -23,14 +23,14 @@ This document outlines two integration options for organizations.
 
 - Import the stable facade:
   ```go
-  import "github.com/redactyl/redactyl/pkg/core"
+  import "github.com/varalys/redactyl/pkg/core"
   ```
 - Use `core.Config`, `core.Finding`, and `core.Scan(cfg)`.
 - Go workspaces make local multi-repo development easy:
   ```sh
   mkdir work && cd work
-  git clone git@github.com:redactyl/redactyl.git
-  git clone git@github.com:redactyl/redactyl-enterprise.git
+  git clone git@github.com:varalys/redactyl.git
+  git clone git@github.com:varalys/redactyl-enterprise.git
   go work init
   go work use ./redactyl ./redactyl-enterprise
   ```

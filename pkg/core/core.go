@@ -1,8 +1,8 @@
 package core
 
 import (
-	"github.com/redactyl/redactyl/internal/engine"
-	"github.com/redactyl/redactyl/internal/types"
+	"github.com/varalys/redactyl/internal/engine"
+	"github.com/varalys/redactyl/internal/types"
 )
 
 // Re-export selected internal types as a stable public API surface.
